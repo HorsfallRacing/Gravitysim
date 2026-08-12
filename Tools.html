@@ -1,0 +1,2118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Horsfall Racing - Lap Speed Calculator</title>
+
+<style>
+body {
+    background: #ffffff;
+    font-family: Geneva, Arial, Helvetica, sans-serif;
+}
+
+.style12 {
+    font-size: small;
+    font-style: italic;
+    font-weight: bold;
+}
+
+.style18 {
+    font-family: Geneva, Arial, Helvetica, sans-serif;
+}
+
+.style13 {
+    font-family: "Century Gothic", Arial, sans-serif;
+    font-size: small;
+}
+
+.lap-header {
+    background: linear-gradient(135deg, #378ADD, #185FA5);
+    color: #ffffff;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 6px 16px rgba(16,24,40,.08);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.lap-header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.lap-header h2 {
+    margin: 6px 0 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: .9;
+}
+
+.lap-card {
+    background: #ffffff;
+    border: 1px solid #e2e5ea;
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    padding: 22px;
+    margin-bottom: 40px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.lap-param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 18px;
+}
+
+.lap-param-box {
+    display: flex;
+    flex-direction: column;
+}
+
+.lap-param-box label {
+    font-size: 11px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-bottom: 7px;
+    font-weight: 700;
+}
+
+.lap-param-box input {
+    padding: 9px 10px;
+    border: 1px solid #e2e5ea;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    background: #fbfbfc;
+    width: 100%;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.lap-param-box input:hover { border-color: #c9ccd3; }
+
+.lap-param-box input:focus {
+    outline: none;
+    border-color: #2f7dd1;
+    box-shadow: 0 0 0 3px #eaf3fc;
+    background: #ffffff;
+}
+
+.lap-param-box small {
+    font-size: 10.5px;
+    color: #9aa1ab;
+    margin-top: 4px;
+}
+
+.lap-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+}
+
+.lap-metric {
+    background: #f8f9fb;
+    border: 1px solid #e2e5ea;
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+}
+
+.lap-metric-label {
+    font-size: 10.5px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.lap-metric-value {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1d24;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    padding: 0;
+}
+
+.lap-metric-value:focus { outline: none; }
+
+.lap-metric-unit {
+    font-size: 10.5px;
+    color: #9aa1ab;
+    margin-top: 2px;
+    display: block;
+}
+
+.lap-clear-btn {
+    background: #2f7dd1;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    transition: background .15s;
+}
+
+.lap-clear-btn:hover { background: #1f5fa8; }
+
+.page-title {
+    font-size: 28px;
+    font-family: Arial, sans-serif;
+    font-style: italic;
+    font-weight: bold;
+    text-align: left;
+    width: 860px;
+    margin: 20px auto 10px auto;
+}
+
+.header-image {
+    display: block;
+    margin: auto;
+}
+
+.navbar {
+    width: 860px;
+    margin: auto;
+}
+
+.calculator-wrapper {
+    width: 860px;
+    margin: auto;
+}
+</style>
+
+<!-- Gravity Kart Simulator: external libs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Gravity Kart Simulator: styles (namespaced under #gravitySimSection) -->
+<style>
+  #gravitySimSection {
+    --bg: #f2f4f7;
+    --surface: #ffffff;
+    --border: #e2e5ea;
+    --text: #1a1d24;
+    --text-muted: #6b7280;
+    --text-faint: #9aa1ab;
+    --accent: #2f7dd1;
+    --accent-dark: #1f5fa8;
+    --accent-soft: #eaf3fc;
+    --danger: #d0392b;
+    --success: #1f7a3d;
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-md: 0 6px 16px rgba(16,24,40,.08);
+    --gap: 24px;
+  }
+  #gravitySimSection, #gravitySimSection * { box-sizing: border-box; }
+  #gravitySimSection {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 28px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1240px; margin: 0 auto; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 22px;
+    margin-bottom: var(--gap);
+  }
+  .card h3, .diagnostics h3, .corners h3 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .card > p, .card-note {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #378ADD, #185FA5);
+    color: white;
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: var(--gap);
+    box-shadow: var(--shadow-md);
+  }
+  .header h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .header h2 { margin: 6px 0 0 0; font-size: 14px; font-weight: 500; opacity: .9; }
+
+  .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; margin-top: 14px; }
+  .param-box { display: flex; flex-direction: column; }
+  .param-box label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 7px; font-weight: 700; }
+  .param-box input {
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    background: #fbfbfc;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .param-box input:hover { border-color: #c9ccd3; }
+  .param-box input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--surface);
+  }
+  .param-box small { font-size: 10.5px; color: var(--text-faint); margin-top: 4px; line-height: 1.4; }
+
+  .wind-panel { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
+  .wind-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .wind-mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .wind-mode-btn { background: #fff; border: none; padding: 7px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s; }
+  .wind-mode-btn:hover:not(.active) { background: #f4f5f7; }
+  .wind-mode-btn.active { background: var(--accent); color: #fff; }
+  .wind-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .compass-mini { touch-action: none; user-select: none; cursor: grab; flex-shrink: 0; }
+  .wind-readout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15px; }
+  .wind-speed-inline { width: 64px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 13px; }
+  .wind-speed-inline:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .wind-note { font-size: 10.5px; color: var(--text-faint); margin-top: 8px; cursor: default; line-height: 1.4; }
+
+  .chart-container { height: 450px; }
+  .chart-container.card { padding: 18px; }
+
+  .run-upload {
+    border: 2px dashed #cfd3d9;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    transition: border-color .15s, background .15s;
+  }
+  .run-upload.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+  .run-upload button { background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .run-upload button:hover { background: var(--accent-dark); }
+  .run-upload-stack { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .run-title-input {
+    width: 220px;
+    text-align: center;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .run-title-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #uploadStatus { margin-top: 8px; font-size: 11.5px; min-height: 14px; }
+  #uploadStatus.error { color: var(--danger); }
+  #uploadStatus.success { color: var(--success); }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: var(--gap); }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 14px 16px;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .metric:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .metric-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; font-weight: 700; }
+  .metric-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .metric-unit { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; }
+
+  .diag-section {
+    background: #f8f9fb;
+    border-left: 3px solid var(--accent);
+    padding: 13px 14px;
+    margin-bottom: 10px;
+    font-size: 11.5px;
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    line-height: 1.7;
+  }
+  .diag-section:last-child { margin-bottom: 0; }
+  .diag-section strong { color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12.5px; }
+  .diag-gap { color: var(--danger); font-weight: 700; }
+
+  .corner-box { background: #f8f9fb; border-left: 3px solid var(--accent); padding: 14px 16px; margin-bottom: 10px; border-radius: var(--radius-sm); }
+  .corner-box:last-child { margin-bottom: 0; }
+  .corner-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .corner-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .corner-stats { display: flex; gap: 28px; flex-wrap: wrap; margin: 12px 0; }
+  .corner-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-faint); font-weight: 700; margin-bottom: 3px; }
+  .corner-stat-value { font-size: 18px; font-weight: 700; color: var(--text); }
+  .corner-stat-value .unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 2px; }
+  .corner-footnote { display: block; color: var(--text-faint); font-size: 10.5px; padding-top: 10px; border-top: 1px solid var(--border); line-height: 1.5; }
+
+  #routeMap { height: 480px; border-radius: var(--radius-md); border: 1px solid var(--border); background: #eee; }
+  .map-overlay-toggle {
+    background: var(--surface);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.9;
+  }
+  .map-overlay-toggle-row { display: flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
+  .map-overlay-toggle-row input { cursor: pointer; margin: 0; }
+  .map-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: var(--text-muted); }
+  .map-legend .legend-scale { display: flex; align-items: center; gap: 6px; }
+  .map-legend .legend-gradient { width: 120px; height: 10px; border-radius: 5px; background: linear-gradient(to right, #2166ac, #67a9cf, #f7f7f7, #fdae61, #d73027); }
+  .map-legend .legend-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .map-legend .legend-line { display: inline-block; width: 16px; height: 3px; margin-right: 4px; vertical-align: middle; }
+  .map-legend .legend-empty-note { color: var(--text-faint); font-style: italic; }
+  .disclaimer-note { font-size: 10.5px; color: var(--text-faint); margin: 10px 0 0 0; line-height: 1.5; }
+
+  @media (max-width: 640px) {
+    #gravitySimSection { padding: 16px 12px; }
+    .header h1 { font-size: 20px; }
+    .card { padding: 16px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .corner-stats { gap: 20px; }
+  }
+</style>
+</head>
+<body onLoad="MM_preloadImages('Images/sharc.jpg','Images/c-NuVinci.jpg','Images/c-ASGB.jpg','Images/c-Probike.jpg','Images/c-sharc.jpg','Images/c-willans.jpg','Images/c-Symscape.jpg')">
+<table width="100%" bgcolor="#FFFFFF">
+  <tr>
+    <td align="center" TD VALIGN="top" style="padding: 0px 0px 10px 0px;">&nbsp;</td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><!-- Begin Content -->
+      <table width="847" height="188" border="0">
+
+        <tr>
+          <td height="21" colspan="6"><div align="right"><img src="Images/about Contact.jpg" width="175" height="17" border="0" usemap="#MapMap">
+            <map name="MapMap">
+              <area shape="rect" coords="6,1,83,15" href="Contacts.html">
+              <area shape="rect" coords="103,1,171,15" href="About.html">
+            </map>
+            </div></td>
+        </tr>
+        <tr>
+          <td height="102" colspan="6"><img src="Images/Tools.jpg" width="860" height="100"></td>
+        </tr>
+        <tr>
+          <td height="10" colspan="6"><img src="Images/bottom bar.jpg" width="483" height="17" border="0" usemap="#Map">
+            <map name="Map">
+              <area shape="rect" coords="3,1,45,16" href="News.html">
+              <area shape="rect" coords="66,0,105,15" href="Team.html">
+              <area shape="rect" coords="191,0,261,15" href="Links.html">
+              <area shape="rect" coords="285,0,339,16" href="Gallery11.html">
+              <area shape="rect" coords="358,2,404,15" href="Tools.html">
+              <area shape="rect" coords="422,2,483,14" href="NuVinci.html">
+              <area shape="rect" coords="129,1,173,14" href="Cars.html">
+              <area shape="rect" coords="53,19,88,30" href="News07.html">
+              <area shape="rect" coords="97,18,135,31" href="News08.html">
+              <area shape="rect" coords="143,19,179,31" href="News09.html">
+              <area shape="rect" coords="185,19,224,31" href="News10.html">
+              <area shape="rect" coords="8,18,42,31" href="News06.html">
+          </map>          </td>
+        </tr>
+        <tr>
+          <td height="21" colspan="6"><P>
+            <CENTER>
+              <p align="left"><span class="style12"><FONT face=Arial size=+2>&gt;L</FONT></span><em><strong><FONT face=Arial size=+2>a</FONT></strong></em><span class="style12"><FONT face=Arial size=+2>p Speed Calculator</FONT></span></p>
+            </CENTER>
+            <CENTER>
+              <p>
+                <title>Untitled Document</title>
+                <script>
+function calculateLapSpeed() {
+
+    const distance = parseFloat(document.getElementById('distance').value);
+    const seconds = parseFloat(document.getElementById('time').value);
+
+    const mphOutput = document.getElementById('mph');
+    const kmhOutput = document.getElementById('kmh');
+
+    if (
+        isNaN(distance) ||
+        isNaN(seconds) ||
+        distance <= 0 ||
+        seconds <= 0
+    ) {
+        mphOutput.value = '';
+        kmhOutput.value = '';
+        return;
+    }
+
+    const hours = seconds / 3600;
+
+    const mph = distance / hours;
+    const kmh = mph * 1.609344;
+
+    mphOutput.value = mph.toFixed(2);
+    kmhOutput.value = kmh.toFixed(2);
+}
+
+function clearCalculator() {
+    document.getElementById('distance').value = '';
+    document.getElementById('time').value = '';
+    document.getElementById('mph').value = '';
+    document.getElementById('kmh').value = '';
+}
+</script>
+
+</head>
+
+<body>
+
+<div class="calculator-wrapper">
+
+    <div class="lap-header">
+        <h1>Lap Speed Calculator</h1>
+        <h2>Average speed from distance and lap time</h2>
+    </div>
+
+    <div class="lap-card">
+        <div class="lap-param-grid">
+            <div class="lap-param-box">
+                <label for="distance">Distance</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    id="distance"
+                    oninput="calculateLapSpeed()"
+                    placeholder="0.000"
+                >
+                <small>Miles</small>
+            </div>
+
+            <div class="lap-param-box">
+                <label for="time">Lap Time</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    id="time"
+                    oninput="calculateLapSpeed()"
+                    placeholder="0.000"
+                >
+                <small>Seconds</small>
+            </div>
+        </div>
+
+        <div class="lap-metrics">
+            <div class="lap-metric">
+                <div class="lap-metric-label">Average Speed</div>
+                <input type="text" id="mph" class="lap-metric-value" readonly>
+                <span class="lap-metric-unit">MPH</span>
+            </div>
+
+            <div class="lap-metric">
+                <div class="lap-metric-label">Average Speed</div>
+                <input type="text" id="kmh" class="lap-metric-value" readonly>
+                <span class="lap-metric-unit">KM/H</span>
+            </div>
+        </div>
+
+        <button type="button" class="lap-clear-btn" onclick="clearCalculator()">Clear Fields</button>
+    </div>
+
+</div>
+
+
+<hr style="margin: 40px auto; width: 860px; border: none; border-top: 1px solid #ccc;">
+<div id="gravitySimSection">
+
+<div class="container">
+  <div class="header">
+    <h1>Harewood Gravity Kart Simulator</h1>
+    <h2>Physics-based pace prediction with calibrated parameters</h2>
+  </div>
+
+  <div class="run-upload card" id="runUpload">
+    <div class="run-upload-stack">
+      <input type="text" id="runTitleInput" class="run-title-input" placeholder="Run name (optional)">
+      <span>Drop GPX file(s) here to add another run, or
+        <button type="button" id="gpxBrowseBtn">browse</button>
+      </span>
+    </div>
+    <input type="file" id="gpxFileInput" accept=".gpx" multiple style="display:none;">
+    <div id="uploadStatus"></div>
+  </div>
+
+  <div class="params card">
+    <h3>Vehicle & Track Parameters</h3>
+    <div class="param-grid">
+      <div class="param-box">
+        <label>Mass (kg)</label>
+        <input type="number" id="mass" value="125.3" min="50" max="160" step="0.1">
+        <small>Fully loaded, measured</small>
+      </div>
+      <div class="param-box">
+        <label>CdA (m²)</label>
+        <input type="number" id="cda" value="0.1125" min="0.06" max="0.20" step="0.001">
+        <small>CFD estimate, real value</small>
+      </div>
+      <div class="param-box">
+        <label>Crr</label>
+        <input type="number" id="crr" value="0.0048" min="0.002" max="0.010" step="0.0001">
+        <small>Pro One tube-type, real value</small>
+      </div>
+      <div class="param-box">
+        <label>μ (friction, all corners)</label>
+        <input type="number" id="mu" value="0.4" min="0.15" max="1.3" step="0.05">
+        <small>Grip (corners + braking), auto-calibrated from Willow/Country</small>
+      </div>
+      <div class="param-box">
+        <label>Brake Confidence (%)</label>
+        <input type="number" id="brakeConfidence" value="90" min="30" max="100" step="1">
+        <small>% of max available (μ×g) brake force actually used</small>
+      </div>
+    </div>
+    <p class="card-note" style="margin-top: 14px; margin-bottom: 0;">† Corners are named and located from GPS heading/curvature (Harewood Speed Hillclimb, run top-to-bottom). Braking point and intensity are no longer fitted per corner — they fall out of a forward (coast) / backward (max-brake) envelope pass entirely driven by vehicle + track parameters. See "Corners" panel below.</p>
+
+    <div class="wind-panel">
+      <div class="wind-header">
+        <h3 style="margin:0;">Wind</h3>
+        <div class="wind-mode-toggle">
+          <button type="button" id="windModeManual" class="wind-mode-btn active">Manual</button>
+          <button type="button" id="windModeActual" class="wind-mode-btn">Actual (recorded)</button>
+        </div>
+      </div>
+
+      <div id="windManualPanel" class="wind-manual-panel">
+        <div class="wind-row">
+          <svg id="compassDial" class="compass-mini" viewBox="0 0 90 90" width="70" height="70">
+            <defs>
+              <marker id="windArrowManual" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#E74C3C"/>
+              </marker>
+            </defs>
+            <circle cx="45" cy="45" r="38" fill="#f8f9fa" stroke="#ddd" stroke-width="1"/>
+            <text x="45" y="12" text-anchor="middle" font-size="9" fill="#999" font-weight="700">N</text>
+            <text x="78" y="48" text-anchor="middle" font-size="9" fill="#999" font-weight="700">E</text>
+            <text x="45" y="84" text-anchor="middle" font-size="9" fill="#999" font-weight="700">S</text>
+            <text x="12" y="48" text-anchor="middle" font-size="9" fill="#999" font-weight="700">W</text>
+            <line id="compassNeedle" x1="45" y1="45" x2="45" y2="17" stroke="#E74C3C" stroke-width="2.5" stroke-linecap="round" marker-end="url(#windArrowManual)"/>
+            <circle cx="45" cy="45" r="2.5" fill="#333"/>
+          </svg>
+          <div class="wind-readout">
+            <strong><span id="windDirReadout">0°</span> <span class="wind-from-label" style="color:#999; font-weight:400;">(from N)</span></strong>
+            <input type="number" id="windSpeed" class="wind-speed-inline" value="0" min="0" max="60" step="1" title="Wind speed">
+            <span style="font-size:11px; color:#999;">km/h</span>
+          </div>
+        </div>
+        <div class="wind-note">Arrow shows the direction the wind is blowing toward — drag it to set. 0 km/h = still air.</div>
+        <input type="hidden" id="windDir" value="0">
+      </div>
+
+      <div id="windActualPanel" class="wind-actual-panel" style="display:none;">
+        <div class="wind-row">
+          <svg id="compassDialActual" class="compass-mini" viewBox="0 0 90 90" width="70" height="70">
+            <defs>
+              <marker id="windArrowActual" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#2980B9"/>
+              </marker>
+            </defs>
+            <circle cx="45" cy="45" r="38" fill="#f8f9fa" stroke="#ddd" stroke-width="1"/>
+            <text x="45" y="12" text-anchor="middle" font-size="9" fill="#999" font-weight="700">N</text>
+            <text x="78" y="48" text-anchor="middle" font-size="9" fill="#999" font-weight="700">E</text>
+            <text x="45" y="84" text-anchor="middle" font-size="9" fill="#999" font-weight="700">S</text>
+            <text x="12" y="48" text-anchor="middle" font-size="9" fill="#999" font-weight="700">W</text>
+            <line id="compassNeedleActual" x1="45" y1="45" x2="45" y2="17" stroke="#2980B9" stroke-width="2.5" stroke-linecap="round" marker-end="url(#windArrowActual)"/>
+            <circle cx="45" cy="45" r="2.5" fill="#333"/>
+          </svg>
+          <div class="wind-readout">
+            <strong><span id="windDirReadoutActual">225°</span> <span class="wind-from-label" style="color:#999; font-weight:400;">(from SW)</span></strong>
+            <input type="number" id="windSpeedActual" class="wind-speed-inline" value="12" min="0" max="60" step="1" title="Wind speed">
+            <span style="font-size:11px; color:#999;">km/h</span>
+          </div>
+        </div>
+        <div class="wind-note" title="No verified station reading could be pinned down for this exact date/time — historical weather sites only expose &quot;today&quot; through an interactive date-picker. Using a placeholder based on typical West Yorkshire summer conditions (prevailing westerly, light-moderate) until confirmed.">
+          ⚠ 26 Jul 2026 ~13:30 — unverified placeholder, not a real reading. Drag to correct once known.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-panel card">
+    <h3>Route Map</h3>
+    <p class="card-note">Predicted speed heatmap along the actual GPS line (updates live with the parameters above) · named corners highlighted · braking zones marked. Map tiles require an internet connection — everything else on this page works offline.</p>
+    <div id="routeMap"></div>
+    <div id="mapLegend" class="map-legend"></div>
+    <p class="disclaimer-note">⚠ Corner, apex-speed and braking-zone markers are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
+  </div>
+
+  <div class="chart-container card">
+    <canvas id="paceChart"></canvas>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Max Speed (Actual)</div>
+      <div class="metric-value" id="maxSpeed">—</div>
+      <div class="metric-unit">km/h</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Max Speed (Predicted)</div>
+      <div class="metric-value" id="maxSpeedPred">—</div>
+      <div class="metric-unit">km/h</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Run Time (Pred)</div>
+      <div class="metric-value" id="runTime">—</div>
+      <div class="metric-unit">sec</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Drag @ Peak</div>
+      <div class="metric-value" id="dragForce">—</div>
+      <div class="metric-unit">N</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Rolling Resistance</div>
+      <div class="metric-value" id="rrForce">—</div>
+      <div class="metric-unit">N</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Finish Speed (Avg)</div>
+      <div class="metric-value" id="finishSpeed">—</div>
+      <div class="metric-unit">km/h</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Energy Available</div>
+      <div class="metric-value" id="energyAvailable">—</div>
+      <div class="metric-unit">kJ (gravity, to finish)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Energy: Rolling Resistance</div>
+      <div class="metric-value" id="energyRR">—</div>
+      <div class="metric-unit">kJ</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Energy: Drag</div>
+      <div class="metric-value" id="energyDrag">—</div>
+      <div class="metric-unit">kJ</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Energy: Cornering</div>
+      <div class="metric-value" id="energyCornering">—</div>
+      <div class="metric-unit">kJ</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Energy: Braking</div>
+      <div class="metric-value" id="energyBraking">—</div>
+      <div class="metric-unit">kJ</div>
+    </div>
+  </div>
+
+  <div class="diagnostics card">
+    <h3>Model vs Reality by Section</h3>
+    <p class="card-note">RMSE = Root Mean Square Error. Lower = better fit. Δ = Actual – Predicted (positive = model is conservative)</p>
+    <div id="diagnosticsOutput"></div>
+  </div>
+
+  <div class="corners card">
+    <h3>Corners</h3>
+    <p class="card-note">Location, direction and radius come from GPS heading/curvature, not speed. Grip limit and predicted apex speed come from a forward (coast) / backward (max-brake) envelope pass — see main description above. Actual apex speed is shown purely as a validation reference.</p>
+    <div id="cornerAnalysis"></div>
+    <p class="disclaimer-note">⚠ Grip limits, apex speeds and braking figures below are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
+  </div>
+
+</div>
+
+<script>
+// elevationProfile and runsData below are both derived from the same GPX file
+// (Garmin, 26 Jul 2026 run) using the same distance calculation — this matters:
+// they used to come from two different sources whose distance labels didn't
+// agree with each other (drifted by up to ~50m in places), which showed up as
+// a false "kink" around 100m on the chart. Single source, single calculation,
+// so elevation and speed can't disagree about where anything is on the track.
+const elevationProfile = [{"d": 0, "ele": 96.8}, {"d": 1.0, "ele": 96.8}, {"d": 4.1, "ele": 96.8}, {"d": 15.6, "ele": 96.2}, {"d": 25.3, "ele": 95.6}, {"d": 32.4, "ele": 95.2}, {"d": 38.7, "ele": 94.8}, {"d": 46.6, "ele": 94.4}, {"d": 54.9, "ele": 93.8}, {"d": 73.9, "ele": 92.8}, {"d": 95.4, "ele": 91.6}, {"d": 106.8, "ele": 90.8}, {"d": 118.7, "ele": 89.8}, {"d": 131.4, "ele": 88.8}, {"d": 145.4, "ele": 87.6}, {"d": 159.4, "ele": 86.6}, {"d": 174.1, "ele": 85.4}, {"d": 189.2, "ele": 84.4}, {"d": 204.8, "ele": 83.4}, {"d": 220.7, "ele": 82.6}, {"d": 236.9, "ele": 82.0}, {"d": 270.9, "ele": 80.0}, {"d": 289.2, "ele": 79.0}, {"d": 307.6, "ele": 77.8}, {"d": 325.9, "ele": 76.2}, {"d": 344.4, "ele": 74.6}, {"d": 361.6, "ele": 72.8}, {"d": 377.0, "ele": 71.2}, {"d": 390.5, "ele": 68.8}, {"d": 405.9, "ele": 66.2}, {"d": 421.3, "ele": 64.4}, {"d": 438.1, "ele": 62.6}, {"d": 454.1, "ele": 61.8}, {"d": 470.8, "ele": 60.8}, {"d": 503.8, "ele": 59.8}, {"d": 518.8, "ele": 59.4}, {"d": 532.9, "ele": 58.8}, {"d": 543.9, "ele": 58.4}, {"d": 553.5, "ele": 57.6}, {"d": 566.2, "ele": 57.0}, {"d": 580.0, "ele": 56.2}, {"d": 594.6, "ele": 55.0}, {"d": 609.1, "ele": 53.2}, {"d": 625.4, "ele": 51.4}, {"d": 641.6, "ele": 49.6}, {"d": 658.8, "ele": 47.8}, {"d": 677.5, "ele": 46.4}, {"d": 696.3, "ele": 45.2}, {"d": 732.8, "ele": 43.4}, {"d": 749.7, "ele": 42.4}, {"d": 768.9, "ele": 41.4}, {"d": 784.4, "ele": 41.0}, {"d": 800.3, "ele": 41.0}, {"d": 830.5, "ele": 42.4}, {"d": 844.5, "ele": 43.2}, {"d": 857.8, "ele": 43.6}, {"d": 870.7, "ele": 43.2}, {"d": 882.5, "ele": 41.8}, {"d": 893.9, "ele": 40.4}, {"d": 907.5, "ele": 38.4}, {"d": 922.1, "ele": 36.6}, {"d": 938.3, "ele": 35.0}, {"d": 954.9, "ele": 33.8}, {"d": 988.3, "ele": 32.2}, {"d": 1005.4, "ele": 31.8}, {"d": 1020.9, "ele": 31.6}, {"d": 1035.7, "ele": 31.4}, {"d": 1048.5, "ele": 31.2}, {"d": 1060.4, "ele": 30.8}, {"d": 1083.5, "ele": 29.8}, {"d": 1092.6, "ele": 29.4}, {"d": 1102.0, "ele": 29.2}];
+
+// Speed here is derived from the GPX's own position+time (central-difference
+// between neighbouring points), not a separately-logged speed field — GPX
+// doesn't include one for this device. This is coarser than true 1Hz GPS
+// speed (sample spacing is irregular, 1-9s) but it's now guaranteed to share
+// the exact same distance basis as elevationProfile above.
+const originalRunSpeed = [{"d": 0, "v": 3.67}, {"d": 1.0, "v": 2.93}, {"d": 4.1, "v": 5.83}, {"d": 15.6, "v": 10.94}, {"d": 25.3, "v": 20.17}, {"d": 32.4, "v": 24.03}, {"d": 38.7, "v": 25.52}, {"d": 46.6, "v": 29.1}, {"d": 54.9, "v": 32.76}, {"d": 73.9, "v": 36.51}, {"d": 95.4, "v": 39.48}, {"d": 106.8, "v": 41.92}, {"d": 118.7, "v": 44.39}, {"d": 131.4, "v": 48.05}, {"d": 145.4, "v": 50.33}, {"d": 159.4, "v": 51.7}, {"d": 174.1, "v": 53.62}, {"d": 189.2, "v": 55.28}, {"d": 204.8, "v": 56.63}, {"d": 220.7, "v": 57.69}, {"d": 236.9, "v": 60.34}, {"d": 270.9, "v": 62.73}, {"d": 289.2, "v": 66.0}, {"d": 307.6, "v": 66.2}, {"d": 325.9, "v": 66.21}, {"d": 344.4, "v": 64.21}, {"d": 361.6, "v": 58.75}, {"d": 377.0, "v": 52.06}, {"d": 390.5, "v": 51.94}, {"d": 405.9, "v": 55.31}, {"d": 421.3, "v": 58.0}, {"d": 438.1, "v": 59.18}, {"d": 454.1, "v": 58.85}, {"d": 470.8, "v": 59.6}, {"d": 503.8, "v": 57.64}, {"d": 518.8, "v": 52.44}, {"d": 532.9, "v": 45.08}, {"d": 543.9, "v": 37.03}, {"d": 553.5, "v": 40.17}, {"d": 566.2, "v": 47.63}, {"d": 580.0, "v": 51.07}, {"d": 594.6, "v": 52.35}, {"d": 609.1, "v": 55.52}, {"d": 625.4, "v": 58.62}, {"d": 641.6, "v": 60.03}, {"d": 658.8, "v": 64.64}, {"d": 677.5, "v": 67.53}, {"d": 696.3, "v": 66.32}, {"d": 732.8, "v": 64.1}, {"d": 749.7, "v": 64.89}, {"d": 768.9, "v": 62.54}, {"d": 784.4, "v": 56.65}, {"d": 800.3, "v": 55.3}, {"d": 830.5, "v": 53.04}, {"d": 844.5, "v": 49.07}, {"d": 857.8, "v": 47.09}, {"d": 870.7, "v": 44.48}, {"d": 882.5, "v": 41.71}, {"d": 893.9, "v": 45.03}, {"d": 907.5, "v": 50.86}, {"d": 922.1, "v": 55.35}, {"d": 938.3, "v": 59.01}, {"d": 954.9, "v": 60.09}, {"d": 988.3, "v": 60.6}, {"d": 1005.4, "v": 58.61}, {"d": 1020.9, "v": 54.59}, {"d": 1035.7, "v": 49.66}, {"d": 1048.5, "v": 44.43}, {"d": 1060.4, "v": 42.02}, {"d": 1083.5, "v": 38.62}, {"d": 1092.6, "v": 33.36}, {"d": 1102.0, "v": 34.02}];
+
+// Raw lat/lon/distance points from GPX (Garmin, 26 Jul 2026 run), used only for
+// corner geometry (heading/curvature) — NOT for speed, which still comes from runsData.
+const routePoints = [{"d": 0, "lat": 53.9037901, "lon": -1.486536}, {"d": 1.0, "lat": 53.9037931, "lon": -1.4865507}, {"d": 4.1, "lat": 53.9038138, "lon": -1.4865202}, {"d": 15.6, "lat": 53.903881, "lon": -1.4863863}, {"d": 25.3, "lat": 53.9039613, "lon": -1.4863268}, {"d": 32.4, "lat": 53.9040248, "lon": -1.4863271}, {"d": 38.7, "lat": 53.9040767, "lon": -1.4863652}, {"d": 46.6, "lat": 53.9041389, "lon": -1.4864232}, {"d": 54.9, "lat": 53.9041954, "lon": -1.4865054}, {"d": 73.9, "lat": 53.9043085, "lon": -1.4867233}, {"d": 95.4, "lat": 53.9043834, "lon": -1.4870266}, {"d": 106.8, "lat": 53.9044066, "lon": -1.4871955}, {"d": 118.7, "lat": 53.9044176, "lon": -1.4873766}, {"d": 131.4, "lat": 53.9044174, "lon": -1.487571}, {"d": 145.4, "lat": 53.9044115, "lon": -1.4877839}, {"d": 159.4, "lat": 53.9043997, "lon": -1.4879966}, {"d": 174.1, "lat": 53.9043803, "lon": -1.488219}, {"d": 189.2, "lat": 53.9043611, "lon": -1.4884466}, {"d": 204.8, "lat": 53.9043346, "lon": -1.4886812}, {"d": 220.7, "lat": 53.9043085, "lon": -1.4889185}, {"d": 236.9, "lat": 53.9042861, "lon": -1.4891634}, {"d": 270.9, "lat": 53.9042655, "lon": -1.489682}, {"d": 289.2, "lat": 53.9042706, "lon": -1.48996}, {"d": 307.6, "lat": 53.904299, "lon": -1.4902373}, {"d": 325.9, "lat": 53.9043468, "lon": -1.4905052}, {"d": 344.4, "lat": 53.9044379, "lon": -1.4907406}, {"d": 361.6, "lat": 53.904578, "lon": -1.4908526}, {"d": 377.0, "lat": 53.9047166, "lon": -1.4908438}, {"d": 390.5, "lat": 53.904817, "lon": -1.4907278}, {"d": 405.9, "lat": 53.9048969, "lon": -1.4905367}, {"d": 421.3, "lat": 53.9049455, "lon": -1.490317}, {"d": 438.1, "lat": 53.905006, "lon": -1.4900813}, {"d": 454.1, "lat": 53.9050593, "lon": -1.4898539}, {"d": 470.8, "lat": 53.9051148, "lon": -1.4896176}, {"d": 503.8, "lat": 53.9052123, "lon": -1.4891417}, {"d": 518.8, "lat": 53.9052588, "lon": -1.4889262}, {"d": 532.9, "lat": 53.905313, "lon": -1.4887315}, {"d": 543.9, "lat": 53.905405, "lon": -1.4886724}, {"d": 553.5, "lat": 53.9054914, "lon": -1.4886829}, {"d": 566.2, "lat": 53.9055627, "lon": -1.488834}, {"d": 580.0, "lat": 53.905646, "lon": -1.4889898}, {"d": 594.6, "lat": 53.9057552, "lon": -1.4891134}, {"d": 609.1, "lat": 53.9058794, "lon": -1.4891801}, {"d": 625.4, "lat": 53.9060245, "lon": -1.4892213}, {"d": 641.6, "lat": 53.9061688, "lon": -1.4892562}, {"d": 658.8, "lat": 53.9063208, "lon": -1.4892998}, {"d": 677.5, "lat": 53.9064873, "lon": -1.4893467}, {"d": 696.3, "lat": 53.9066541, "lon": -1.489388}, {"d": 732.8, "lat": 53.9069567, "lon": -1.4896049}, {"d": 749.7, "lat": 53.9070275, "lon": -1.4898331}, {"d": 768.9, "lat": 53.9071075, "lon": -1.4900921}, {"d": 784.4, "lat": 53.9070717, "lon": -1.4903222}, {"d": 800.3, "lat": 53.9070061, "lon": -1.4905376}, {"d": 830.5, "lat": 53.9068616, "lon": -1.4909279}, {"d": 844.5, "lat": 53.9068106, "lon": -1.4911233}, {"d": 857.8, "lat": 53.9067909, "lon": -1.491323}, {"d": 870.7, "lat": 53.9068401, "lon": -1.4915012}, {"d": 882.5, "lat": 53.9069269, "lon": -1.4916054}, {"d": 893.9, "lat": 53.9070263, "lon": -1.4916453}, {"d": 907.5, "lat": 53.9071486, "lon": -1.4916646}, {"d": 922.1, "lat": 53.9072772, "lon": -1.4917098}, {"d": 938.3, "lat": 53.9074203, "lon": -1.4917523}, {"d": 954.9, "lat": 53.9075661, "lon": -1.4918087}, {"d": 988.3, "lat": 53.9078518, "lon": -1.4919685}, {"d": 1005.4, "lat": 53.9079694, "lon": -1.4921354}, {"d": 1020.9, "lat": 53.9080357, "lon": -1.4923437}, {"d": 1035.7, "lat": 53.908063, "lon": -1.4925652}, {"d": 1048.5, "lat": 53.908009, "lon": -1.4927372}, {"d": 1060.4, "lat": 53.9079143, "lon": -1.4928222}, {"d": 1083.5, "lat": 53.9077097, "lon": -1.4927608}, {"d": 1092.6, "lat": 53.9076287, "lon": -1.492779}, {"d": 1102.0, "lat": 53.9075502, "lon": -1.4928341}];
+
+// --- 4 additional runs, same GPX/Garmin source, same 26 Jul 2026 session ---
+// Parsed with the identical haversine-distance + central-difference-speed
+// method as the run above (see gpx_check2.js in session scratch — reused
+// here, not a new/second methodology). All validated: no GPS-glitch speed
+// spikes, normal timestamp gaps (3-6s), correct course start/end, run times
+// (87/89/92/92s) all inside the documented 88-92s real-run range. Ordered by
+// GPX start time (earliest first); the original run above started last that
+// day (13:31:59), after all four of these.
+// run4 (activity_23738438725, 12:17:08) is a genuinely different/shorter
+// line (1072m vs 1097-1112m for the rest) — not a data-quality problem, but
+// excluded from corner-radius circle-fitting and μ recalibration (see
+// analyzeCorners()) so one atypical line doesn't skew the course's assumed
+// physical geometry. Still included here in runsData for the chart and
+// general diagnostics, where it's simply another valid pace sample.
+const run2Points = [{"d": 0, "lat": 53.9038159, "lon": -1.4864931}, {"d": 3.3, "lat": 53.9037865, "lon": -1.4864977}, {"d": 9.6, "lat": 53.9038434, "lon": -1.486488}, {"d": 29, "lat": 53.9040123, "lon": -1.4864153}, {"d": 35.1, "lat": 53.904066, "lon": -1.4863997}, {"d": 43.1, "lat": 53.9041382, "lon": -1.4864123}, {"d": 59.4, "lat": 53.9042495, "lon": -1.486574}, {"d": 69, "lat": 53.9043052, "lon": -1.4866852}, {"d": 79.3, "lat": 53.904353, "lon": -1.4868204}, {"d": 79.3, "lat": 53.904353, "lon": -1.4868204}, {"d": 94.8, "lat": 53.9043899, "lon": -1.4870483}, {"d": 107, "lat": 53.9044142, "lon": -1.4872295}, {"d": 119.4, "lat": 53.9044236, "lon": -1.4874183}, {"d": 132.3, "lat": 53.9044259, "lon": -1.4876157}, {"d": 159, "lat": 53.9044126, "lon": -1.4880221}, {"d": 173.8, "lat": 53.9043923, "lon": -1.4882464}, {"d": 189.1, "lat": 53.9043679, "lon": -1.4884753}, {"d": 204.3, "lat": 53.9043427, "lon": -1.4887041}, {"d": 220, "lat": 53.9043148, "lon": -1.4889385}, {"d": 251.7, "lat": 53.9042687, "lon": -1.4894165}, {"d": 283.3, "lat": 53.9042567, "lon": -1.489898}, {"d": 298.7, "lat": 53.9042642, "lon": -1.4901328}, {"d": 313.2, "lat": 53.9042881, "lon": -1.4903497}, {"d": 327.7, "lat": 53.9043217, "lon": -1.4905645}, {"d": 342.2, "lat": 53.904383, "lon": -1.49076}, {"d": 357.2, "lat": 53.9044794, "lon": -1.4909191}, {"d": 370.2, "lat": 53.9045963, "lon": -1.4909394}, {"d": 383.3, "lat": 53.9047132, "lon": -1.4909154}, {"d": 395.7, "lat": 53.9048004, "lon": -1.4907975}, {"d": 408.6, "lat": 53.9048702, "lon": -1.4906411}, {"d": 425.6, "lat": 53.9049344, "lon": -1.4904058}, {"d": 440.5, "lat": 53.904992, "lon": -1.4902002}, {"d": 472.4, "lat": 53.9050992, "lon": -1.4897488}, {"d": 504.7, "lat": 53.9052062, "lon": -1.4892893}, {"d": 519.4, "lat": 53.9052534, "lon": -1.4890801}, {"d": 543.5, "lat": 53.9053641, "lon": -1.4887639}, {"d": 552.3, "lat": 53.9054416, "lon": -1.4887348}, {"d": 560.7, "lat": 53.9055085, "lon": -1.4887936}, {"d": 571.3, "lat": 53.9055815, "lon": -1.4888972}, {"d": 583.3, "lat": 53.9056603, "lon": -1.489022}, {"d": 610.1, "lat": 53.9058738, "lon": -1.489213}, {"d": 624.9, "lat": 53.9060032, "lon": -1.4892633}, {"d": 641.4, "lat": 53.9061504, "lon": -1.4892952}, {"d": 657.9, "lat": 53.9062981, "lon": -1.4893235}, {"d": 674.3, "lat": 53.9064448, "lon": -1.4893505}, {"d": 691.6, "lat": 53.9065994, "lon": -1.4893851}, {"d": 709.6, "lat": 53.906759, "lon": -1.489423}, {"d": 727.1, "lat": 53.9069095, "lon": -1.489505}, {"d": 744.2, "lat": 53.90702, "lon": -1.4896856}, {"d": 760.4, "lat": 53.9071088, "lon": -1.4898824}, {"d": 775.9, "lat": 53.9071054, "lon": -1.4901187}, {"d": 791.6, "lat": 53.9070772, "lon": -1.4903533}, {"d": 807.6, "lat": 53.9070224, "lon": -1.4905785}, {"d": 822.7, "lat": 53.9069628, "lon": -1.4907869}, {"d": 864.7, "lat": 53.9068459, "lon": -1.4913961}, {"d": 878, "lat": 53.9069105, "lon": -1.4915665}, {"d": 890.3, "lat": 53.9069985, "lon": -1.4916801}, {"d": 901.7, "lat": 53.9070981, "lon": -1.4917255}, {"d": 916.2, "lat": 53.9072267, "lon": -1.491756}, {"d": 930.1, "lat": 53.9073496, "lon": -1.4917946}, {"d": 945.4, "lat": 53.9074861, "lon": -1.4918281}, {"d": 962, "lat": 53.9076336, "lon": -1.4918672}, {"d": 995, "lat": 53.9079181, "lon": -1.4920096}, {"d": 1023.6, "lat": 53.9080735, "lon": -1.4923585}, {"d": 1049.8, "lat": 53.9080701, "lon": -1.492757}, {"d": 1061, "lat": 53.9079778, "lon": -1.4928277}, {"d": 1072.4, "lat": 53.9078755, "lon": -1.4928108}, {"d": 1093.6, "lat": 53.9076852, "lon": -1.492789}, {"d": 1101, "lat": 53.9076294, "lon": -1.4928481}, {"d": 1107.6, "lat": 53.9075825, "lon": -1.4929118}, {"d": 1112.1, "lat": 53.907557, "lon": -1.4929643}];
+const run2Speed = [{"d": 0, "v": 3.93}, {"d": 3.3, "v": 8.67}, {"d": 9.6, "v": 30.88}, {"d": 29, "v": 30.51}, {"d": 35.1, "v": 25.41}, {"d": 43.1, "v": 29.23}, {"d": 59.4, "v": 31.02}, {"d": 69, "v": 35.8}, {"d": 79.3, "v": 18.59}, {"d": 79.3, "v": 27.87}, {"d": 94.8, "v": 49.78}, {"d": 107, "v": 44.25}, {"d": 119.4, "v": 45.63}, {"d": 132.3, "v": 47.52}, {"d": 159, "v": 49.83}, {"d": 173.8, "v": 54.19}, {"d": 189.1, "v": 54.88}, {"d": 204.3, "v": 55.64}, {"d": 220, "v": 56.87}, {"d": 251.7, "v": 56.97}, {"d": 283.3, "v": 56.37}, {"d": 298.7, "v": 53.75}, {"d": 313.2, "v": 52.22}, {"d": 327.7, "v": 52.31}, {"d": 342.2, "v": 53.02}, {"d": 357.2, "v": 50.44}, {"d": 370.2, "v": 47.08}, {"d": 383.3, "v": 45.88}, {"d": 395.7, "v": 45.46}, {"d": 408.6, "v": 53.71}, {"d": 425.6, "v": 57.42}, {"d": 440.5, "v": 56.15}, {"d": 472.4, "v": 57.82}, {"d": 504.7, "v": 56.45}, {"d": 519.4, "v": 46.53}, {"d": 543.5, "v": 39.51}, {"d": 552.3, "v": 30.97}, {"d": 560.7, "v": 34.12}, {"d": 571.3, "v": 40.62}, {"d": 583.3, "v": 46.58}, {"d": 610.1, "v": 49.91}, {"d": 624.9, "v": 56.27}, {"d": 641.4, "v": 59.45}, {"d": 657.9, "v": 59.28}, {"d": 674.3, "v": 60.75}, {"d": 691.6, "v": 63.48}, {"d": 709.6, "v": 63.9}, {"d": 727.1, "v": 62.34}, {"d": 744.2, "v": 59.92}, {"d": 760.4, "v": 57.09}, {"d": 775.9, "v": 56.1}, {"d": 791.6, "v": 56.96}, {"d": 807.6, "v": 56.05}, {"d": 822.7, "v": 51.43}, {"d": 864.7, "v": 49.71}, {"d": 878, "v": 46.02}, {"d": 890.3, "v": 42.79}, {"d": 901.7, "v": 46.64}, {"d": 916.2, "v": 51}, {"d": 930.1, "v": 52.61}, {"d": 945.4, "v": 57.48}, {"d": 962, "v": 59.5}, {"d": 995, "v": 55.47}, {"d": 1023.6, "v": 49.28}, {"d": 1049.8, "v": 44.84}, {"d": 1061, "v": 40.84}, {"d": 1072.4, "v": 39.17}, {"d": 1093.6, "v": 34.22}, {"d": 1101, "v": 25.18}, {"d": 1107.6, "v": 20.04}, {"d": 1112.1, "v": 16.05}];
+
+const run3Points = [{"d": 0, "lat": 53.9037989, "lon": -1.486567}, {"d": 1.3, "lat": 53.9037912, "lon": -1.4865528}, {"d": 8.7, "lat": 53.9038224, "lon": -1.4864521}, {"d": 25.5, "lat": 53.9039423, "lon": -1.4862952}, {"d": 39.5, "lat": 53.9040644, "lon": -1.4863419}, {"d": 47.4, "lat": 53.9041226, "lon": -1.4864114}, {"d": 66.4, "lat": 53.9042498, "lon": -1.4866049}, {"d": 75.9, "lat": 53.9042972, "lon": -1.4867262}, {"d": 86.6, "lat": 53.9043405, "lon": -1.4868721}, {"d": 98.3, "lat": 53.9043708, "lon": -1.4870426}, {"d": 110.8, "lat": 53.9043906, "lon": -1.4872309}, {"d": 137.2, "lat": 53.9043982, "lon": -1.4876336}, {"d": 150.7, "lat": 53.9043905, "lon": -1.4878385}, {"d": 164.6, "lat": 53.9043778, "lon": -1.4880511}, {"d": 179.5, "lat": 53.9043687, "lon": -1.488277}, {"d": 194.6, "lat": 53.9043511, "lon": -1.4885051}, {"d": 209.7, "lat": 53.9043317, "lon": -1.488734}, {"d": 240.5, "lat": 53.9042902, "lon": -1.4891982}, {"d": 272.1, "lat": 53.9042716, "lon": -1.4896801}, {"d": 288.2, "lat": 53.9042714, "lon": -1.489926}, {"d": 305.9, "lat": 53.9042956, "lon": -1.4901923}, {"d": 323.8, "lat": 53.9043314, "lon": -1.4904597}, {"d": 340.2, "lat": 53.9043958, "lon": -1.4906842}, {"d": 355.2, "lat": 53.9044837, "lon": -1.4908584}, {"d": 368.4, "lat": 53.9045893, "lon": -1.49095}, {"d": 381.8, "lat": 53.9047097, "lon": -1.4909506}, {"d": 394.8, "lat": 53.904786, "lon": -1.4908004}, {"d": 408.2, "lat": 53.904863, "lon": -1.4906421}, {"d": 422.5, "lat": 53.90493, "lon": -1.4904566}, {"d": 453.3, "lat": 53.9050392, "lon": -1.4900243}, {"d": 469.4, "lat": 53.9050786, "lon": -1.4897881}, {"d": 502.9, "lat": 53.9051707, "lon": -1.4893001}, {"d": 531.9, "lat": 53.905273, "lon": -1.4888935}, {"d": 544.8, "lat": 53.9053715, "lon": -1.4887904}, {"d": 564.3, "lat": 53.9055461, "lon": -1.4888275}, {"d": 601.8, "lat": 53.9058177, "lon": -1.4891666}, {"d": 615.8, "lat": 53.9059398, "lon": -1.4892163}, {"d": 631.4, "lat": 53.9060783, "lon": -1.4892547}, {"d": 647.4, "lat": 53.9062217, "lon": -1.4892819}, {"d": 664.6, "lat": 53.906375, "lon": -1.4893067}, {"d": 681.9, "lat": 53.9065302, "lon": -1.4893389}, {"d": 700.9, "lat": 53.9066987, "lon": -1.4893813}, {"d": 719.4, "lat": 53.9068599, "lon": -1.4894547}, {"d": 738.5, "lat": 53.9069975, "lon": -1.489628}, {"d": 754.9, "lat": 53.9070778, "lon": -1.4898376}, {"d": 769.4, "lat": 53.9070784, "lon": -1.4900587}, {"d": 784, "lat": 53.9070547, "lon": -1.4902786}, {"d": 827.8, "lat": 53.9068975, "lon": -1.4908917}, {"d": 855.2, "lat": 53.9068242, "lon": -1.4912906}, {"d": 869, "lat": 53.9068601, "lon": -1.4914923}, {"d": 880.1, "lat": 53.9069271, "lon": -1.4916182}, {"d": 890.1, "lat": 53.9070119, "lon": -1.4916702}, {"d": 902.2, "lat": 53.9071195, "lon": -1.4916988}, {"d": 915.9, "lat": 53.9072412, "lon": -1.4917264}, {"d": 930.7, "lat": 53.9073724, "lon": -1.4917643}, {"d": 946.4, "lat": 53.9075114, "lon": -1.4918055}, {"d": 963.6, "lat": 53.9076638, "lon": -1.4918513}, {"d": 980.9, "lat": 53.9078132, "lon": -1.4919264}, {"d": 998.1, "lat": 53.9079444, "lon": -1.4920669}, {"d": 1013.6, "lat": 53.9080324, "lon": -1.4922487}, {"d": 1027.9, "lat": 53.908069, "lon": -1.4924582}, {"d": 1039.8, "lat": 53.9080368, "lon": -1.4926326}, {"d": 1051.6, "lat": 53.9079768, "lon": -1.4927811}, {"d": 1062.3, "lat": 53.9078833, "lon": -1.4928154}, {"d": 1072.6, "lat": 53.9077911, "lon": -1.4928017}, {"d": 1090.8, "lat": 53.9076277, "lon": -1.4928193}, {"d": 1096.9, "lat": 53.9075773, "lon": -1.4928576}];
+const run3Speed = [{"d": 0, "v": 4.55}, {"d": 1.3, "v": 4.48}, {"d": 8.7, "v": 8.74}, {"d": 25.5, "v": 18.45}, {"d": 39.5, "v": 26.2}, {"d": 47.4, "v": 32.29}, {"d": 66.4, "v": 34.24}, {"d": 75.9, "v": 36.43}, {"d": 86.6, "v": 40.25}, {"d": 98.3, "v": 43.56}, {"d": 110.8, "v": 46.71}, {"d": 137.2, "v": 47.81}, {"d": 150.7, "v": 49.41}, {"d": 164.6, "v": 51.89}, {"d": 179.5, "v": 53.83}, {"d": 194.6, "v": 54.4}, {"d": 209.7, "v": 55.08}, {"d": 240.5, "v": 56.15}, {"d": 272.1, "v": 57.3}, {"d": 288.2, "v": 60.77}, {"d": 305.9, "v": 64.1}, {"d": 323.8, "v": 61.78}, {"d": 340.2, "v": 56.49}, {"d": 355.2, "v": 50.79}, {"d": 368.4, "v": 47.83}, {"d": 381.8, "v": 47.48}, {"d": 394.8, "v": 47.6}, {"d": 408.2, "v": 49.86}, {"d": 422.5, "v": 54.08}, {"d": 453.3, "v": 56.28}, {"d": 469.4, "v": 59.58}, {"d": 502.9, "v": 56.28}, {"d": 531.9, "v": 50.19}, {"d": 544.8, "v": 38.93}, {"d": 564.3, "v": 41.09}, {"d": 601.8, "v": 46.3}, {"d": 615.8, "v": 53.22}, {"d": 631.4, "v": 56.98}, {"d": 647.4, "v": 59.71}, {"d": 664.6, "v": 62.11}, {"d": 681.9, "v": 65.37}, {"d": 700.9, "v": 67.51}, {"d": 719.4, "v": 67.7}, {"d": 738.5, "v": 63.76}, {"d": 754.9, "v": 55.55}, {"d": 769.4, "v": 52.43}, {"d": 784, "v": 52.6}, {"d": 827.8, "v": 51.25}, {"d": 855.2, "v": 49.4}, {"d": 869, "v": 44.85}, {"d": 880.1, "v": 38.05}, {"d": 890.1, "v": 39.84}, {"d": 902.2, "v": 46.38}, {"d": 915.9, "v": 51.21}, {"d": 930.7, "v": 54.87}, {"d": 946.4, "v": 59.23}, {"d": 963.6, "v": 62.17}, {"d": 980.9, "v": 62.23}, {"d": 998.1, "v": 58.79}, {"d": 1013.6, "v": 53.51}, {"d": 1027.9, "v": 47.31}, {"d": 1039.8, "v": 42.78}, {"d": 1051.6, "v": 40.39}, {"d": 1062.3, "v": 37.68}, {"d": 1072.6, "v": 34.19}, {"d": 1090.8, "v": 29.21}, {"d": 1096.9, "v": 22.1}];
+
+// run4 (activity_23738438725): excluded from geometry/μ, see note above.
+const run4Points = [{"d": 0, "lat": 53.9038297, "lon": -1.4865592}, {"d": 0.4, "lat": 53.9038322, "lon": -1.4865538}, {"d": 6.2, "lat": 53.9038489, "lon": -1.4864705}, {"d": 22.6, "lat": 53.9039705, "lon": -1.486329}, {"d": 37.8, "lat": 53.9041051, "lon": -1.4863697}, {"d": 45.9, "lat": 53.9041679, "lon": -1.486431}, {"d": 54.9, "lat": 53.9042324, "lon": -1.4865147}, {"d": 73.9, "lat": 53.9043415, "lon": -1.4867387}, {"d": 95.4, "lat": 53.9044012, "lon": -1.4870506}, {"d": 107.5, "lat": 53.9044189, "lon": -1.4872332}, {"d": 132.9, "lat": 53.9044311, "lon": -1.4876198}, {"d": 160.1, "lat": 53.9044155, "lon": -1.4880343}, {"d": 174.3, "lat": 53.9043965, "lon": -1.4882478}, {"d": 189.2, "lat": 53.9043785, "lon": -1.4884739}, {"d": 204.5, "lat": 53.9043585, "lon": -1.4887054}, {"d": 220.2, "lat": 53.9043366, "lon": -1.4889415}, {"d": 251.8, "lat": 53.9043019, "lon": -1.4894212}, {"d": 285.6, "lat": 53.9042962, "lon": -1.4899363}, {"d": 303, "lat": 53.9043349, "lon": -1.4901933}, {"d": 319.4, "lat": 53.9043704, "lon": -1.4904369}, {"d": 335.1, "lat": 53.9044336, "lon": -1.4906508}, {"d": 349.9, "lat": 53.9045197, "lon": -1.4908232}, {"d": 361.7, "lat": 53.9046204, "lon": -1.4908812}, {"d": 373.6, "lat": 53.9047207, "lon": -1.4908206}, {"d": 386.8, "lat": 53.904813, "lon": -1.4906933}, {"d": 400.6, "lat": 53.9048815, "lon": -1.4905165}, {"d": 415, "lat": 53.9049253, "lon": -1.4903097}, {"d": 430.4, "lat": 53.9049758, "lon": -1.490092}, {"d": 445.8, "lat": 53.905021, "lon": -1.4898701}, {"d": 461.6, "lat": 53.9050686, "lon": -1.4896421}, {"d": 477.1, "lat": 53.9051177, "lon": -1.4894212}, {"d": 505.1, "lat": 53.9052296, "lon": -1.4890374}, {"d": 516.6, "lat": 53.9052926, "lon": -1.4888978}, {"d": 531.1, "lat": 53.9053852, "lon": -1.4887434}, {"d": 541.4, "lat": 53.9054782, "lon": -1.4887388}, {"d": 568.5, "lat": 53.9056635, "lon": -1.4890071}, {"d": 579.2, "lat": 53.9057447, "lon": -1.489096}, {"d": 591.6, "lat": 53.9058485, "lon": -1.489163}, {"d": 606.6, "lat": 53.90598, "lon": -1.4892181}, {"d": 623.4, "lat": 53.9061278, "lon": -1.4892669}, {"d": 642.4, "lat": 53.9062959, "lon": -1.4893238}, {"d": 661.8, "lat": 53.9064637, "lon": -1.4894017}, {"d": 680.8, "lat": 53.9066229, "lon": -1.4895077}, {"d": 702.9, "lat": 53.9067907, "lon": -1.4896892}, {"d": 719.1, "lat": 53.9068505, "lon": -1.4899136}, {"d": 751.2, "lat": 53.9070606, "lon": -1.4902511}, {"d": 776.7, "lat": 53.9071203, "lon": -1.4906271}, {"d": 812.9, "lat": 53.9069878, "lon": -1.4911313}, {"d": 838.2, "lat": 53.907038, "lon": -1.4915085}, {"d": 846.2, "lat": 53.9070702, "lon": -1.4916169}, {"d": 853.3, "lat": 53.9071333, "lon": -1.4916378}, {"d": 866.5, "lat": 53.9072479, "lon": -1.4916884}, {"d": 881.8, "lat": 53.907383, "lon": -1.4917334}, {"d": 898.7, "lat": 53.9075311, "lon": -1.4917904}, {"d": 916.3, "lat": 53.9076828, "lon": -1.4918661}, {"d": 934.5, "lat": 53.9078311, "lon": -1.4919842}, {"d": 947, "lat": 53.9079137, "lon": -1.4921127}, {"d": 960.2, "lat": 53.9079944, "lon": -1.4922612}, {"d": 981.2, "lat": 53.9080892, "lon": -1.4925394}, {"d": 991.9, "lat": 53.9081233, "lon": -1.4926915}, {"d": 1009, "lat": 53.9079824, "lon": -1.4927947}, {"d": 1036.9, "lat": 53.9077316, "lon": -1.4927871}, {"d": 1046.9, "lat": 53.9076446, "lon": -1.492827}, {"d": 1062.6, "lat": 53.9075313, "lon": -1.4929703}, {"d": 1070.2, "lat": 53.9075099, "lon": -1.4930799}, {"d": 1072, "lat": 53.9075052, "lon": -1.4931067}];
+const run4Speed = [{"d": 0, "v": 1.62}, {"d": 0.4, "v": 3.73}, {"d": 6.2, "v": 8.86}, {"d": 22.6, "v": 18.96}, {"d": 37.8, "v": 27.91}, {"d": 45.9, "v": 30.75}, {"d": 54.9, "v": 33.68}, {"d": 73.9, "v": 36.47}, {"d": 95.4, "v": 40.33}, {"d": 107.5, "v": 44.98}, {"d": 132.9, "v": 47.32}, {"d": 160.1, "v": 49.62}, {"d": 174.3, "v": 52.36}, {"d": 189.2, "v": 54.49}, {"d": 204.5, "v": 55.78}, {"d": 220.2, "v": 56.78}, {"d": 251.8, "v": 58.87}, {"d": 285.6, "v": 61.36}, {"d": 303, "v": 60.87}, {"d": 319.4, "v": 57.81}, {"d": 335.1, "v": 54.87}, {"d": 349.9, "v": 47.94}, {"d": 361.7, "v": 42.59}, {"d": 373.6, "v": 45.1}, {"d": 386.8, "v": 48.76}, {"d": 400.6, "v": 50.87}, {"d": 415, "v": 53.51}, {"d": 430.4, "v": 55.27}, {"d": 445.8, "v": 56.21}, {"d": 461.6, "v": 56.37}, {"d": 477.1, "v": 52.22}, {"d": 505.1, "v": 47.48}, {"d": 516.6, "v": 46.71}, {"d": 531.1, "v": 29.73}, {"d": 541.4, "v": 33.68}, {"d": 568.5, "v": 45.39}, {"d": 579.2, "v": 41.56}, {"d": 591.6, "v": 49.33}, {"d": 606.6, "v": 57.26}, {"d": 623.4, "v": 64.45}, {"d": 642.4, "v": 69.12}, {"d": 661.8, "v": 69.04}, {"d": 680.8, "v": 74.05}, {"d": 702.9, "v": 45.91}, {"d": 719.1, "v": 34.77}, {"d": 751.2, "v": 41.53}, {"d": 776.7, "v": 55.51}, {"d": 812.9, "v": 55.35}, {"d": 838.2, "v": 39.94}, {"d": 846.2, "v": 27.18}, {"d": 853.3, "v": 36.57}, {"d": 866.5, "v": 51.26}, {"d": 881.8, "v": 57.96}, {"d": 898.7, "v": 62.03}, {"d": 916.3, "v": 64.43}, {"d": 934.5, "v": 55.22}, {"d": 947, "v": 46.24}, {"d": 960.2, "v": 41.15}, {"d": 981.2, "v": 38.05}, {"d": 991.9, "v": 49.9}, {"d": 1009, "v": 53.96}, {"d": 1036.9, "v": 45.51}, {"d": 1046.9, "v": 30.87}, {"d": 1062.6, "v": 20.94}, {"d": 1070.2, "v": 11.27}, {"d": 1072, "v": 6.6}];
+
+const run5Points = [{"d": 0, "lat": 53.9037828, "lon": -1.4864967}, {"d": 1.7, "lat": 53.9037675, "lon": -1.4865001}, {"d": 8, "lat": 53.9038048, "lon": -1.4864284}, {"d": 26.6, "lat": 53.9039577, "lon": -1.4863124}, {"d": 34.2, "lat": 53.9040254, "lon": -1.4863237}, {"d": 41.7, "lat": 53.904086, "lon": -1.486374}, {"d": 50.9, "lat": 53.904156, "lon": -1.4864498}, {"d": 60.9, "lat": 53.9042257, "lon": -1.4865465}, {"d": 71.7, "lat": 53.9042925, "lon": -1.4866665}, {"d": 83.1, "lat": 53.9043509, "lon": -1.4868093}, {"d": 94.2, "lat": 53.9043883, "lon": -1.4869664}, {"d": 105.7, "lat": 53.9044145, "lon": -1.4871363}, {"d": 118, "lat": 53.9044296, "lon": -1.4873222}, {"d": 131.3, "lat": 53.9044321, "lon": -1.4875252}, {"d": 159.1, "lat": 53.9044225, "lon": -1.4879495}, {"d": 173.8, "lat": 53.9044066, "lon": -1.4881715}, {"d": 188.2, "lat": 53.9043896, "lon": -1.4883903}, {"d": 203.3, "lat": 53.9043697, "lon": -1.4886175}, {"d": 218.6, "lat": 53.9043468, "lon": -1.488848}, {"d": 234.1, "lat": 53.9043231, "lon": -1.4890817}, {"d": 265.9, "lat": 53.9042906, "lon": -1.4895639}, {"d": 316.4, "lat": 53.9043171, "lon": -1.4903325}, {"d": 333.3, "lat": 53.9043723, "lon": -1.4905733}, {"d": 349, "lat": 53.9044569, "lon": -1.4907656}, {"d": 363.3, "lat": 53.9045655, "lon": -1.4908818}, {"d": 377.6, "lat": 53.9046939, "lon": -1.4908919}, {"d": 393, "lat": 53.904802, "lon": -1.4907453}, {"d": 407.6, "lat": 53.9048536, "lon": -1.4905394}, {"d": 424, "lat": 53.904917, "lon": -1.490313}, {"d": 440.2, "lat": 53.9049761, "lon": -1.4900877}, {"d": 456.4, "lat": 53.9050292, "lon": -1.4898574}, {"d": 488.9, "lat": 53.9051411, "lon": -1.489399}, {"d": 534.2, "lat": 53.9053078, "lon": -1.4887675}, {"d": 546.7, "lat": 53.9054091, "lon": -1.4886869}, {"d": 555.4, "lat": 53.9054846, "lon": -1.4886503}, {"d": 568.8, "lat": 53.9055596, "lon": -1.4888113}, {"d": 581.6, "lat": 53.9056353, "lon": -1.4889584}, {"d": 595.4, "lat": 53.9057363, "lon": -1.4890802}, {"d": 608.5, "lat": 53.9058454, "lon": -1.4891561}, {"d": 623.7, "lat": 53.9059781, "lon": -1.4892095}, {"d": 639.8, "lat": 53.9061214, "lon": -1.4892494}, {"d": 657, "lat": 53.9062713, "lon": -1.4893118}, {"d": 674.6, "lat": 53.9064249, "lon": -1.4893744}, {"d": 692.7, "lat": 53.9065805, "lon": -1.4894557}, {"d": 711.2, "lat": 53.9067285, "lon": -1.4895846}, {"d": 733.6, "lat": 53.906909, "lon": -1.4897394}, {"d": 747.7, "lat": 53.9070064, "lon": -1.4898762}, {"d": 757.1, "lat": 53.9070782, "lon": -1.489952}, {"d": 761.4, "lat": 53.9070937, "lon": -1.4900116}, {"d": 767.6, "lat": 53.9071013, "lon": -1.4901053}, {"d": 780.8, "lat": 53.9070816, "lon": -1.4903041}, {"d": 797.5, "lat": 53.9070377, "lon": -1.4905489}, {"d": 845.1, "lat": 53.9069562, "lon": -1.4912613}, {"d": 855.7, "lat": 53.9069592, "lon": -1.4914238}, {"d": 864.3, "lat": 53.9070002, "lon": -1.4915354}, {"d": 872.2, "lat": 53.9070602, "lon": -1.4915998}, {"d": 881.7, "lat": 53.9071432, "lon": -1.4916298}, {"d": 896.5, "lat": 53.9072753, "lon": -1.4916597}, {"d": 912.2, "lat": 53.9074148, "lon": -1.4917007}, {"d": 929.4, "lat": 53.9075654, "lon": -1.4917601}, {"d": 964.2, "lat": 53.9078424, "lon": -1.4920084}, {"d": 980.5, "lat": 53.9079635, "lon": -1.4921481}, {"d": 993, "lat": 53.9080415, "lon": -1.4922858}, {"d": 1014.8, "lat": 53.9081496, "lon": -1.4925629}, {"d": 1038.6, "lat": 53.9079522, "lon": -1.4927012}, {"d": 1062.2, "lat": 53.90774, "lon": -1.4927155}, {"d": 1073.7, "lat": 53.9076451, "lon": -1.4927859}, {"d": 1083, "lat": 53.9075979, "lon": -1.492903}, {"d": 1090.3, "lat": 53.9075696, "lon": -1.4930042}, {"d": 1096.5, "lat": 53.9075427, "lon": -1.4930874}, {"d": 1099.4, "lat": 53.9075321, "lon": -1.4931278}, {"d": 1101.1, "lat": 53.9075248, "lon": -1.4931503}];
+const run5Speed = [{"d": 0, "v": 6.16}, {"d": 1.7, "v": 4.1}, {"d": 8, "v": 8.96}, {"d": 26.6, "v": 18.85}, {"d": 34.2, "v": 27.12}, {"d": 41.7, "v": 30.12}, {"d": 50.9, "v": 34.63}, {"d": 60.9, "v": 37.48}, {"d": 71.7, "v": 39.96}, {"d": 83.1, "v": 40.48}, {"d": 94.2, "v": 40.69}, {"d": 105.7, "v": 42.84}, {"d": 118, "v": 46.07}, {"d": 131.3, "v": 49.34}, {"d": 159.1, "v": 50.95}, {"d": 173.8, "v": 52.39}, {"d": 188.2, "v": 53.12}, {"d": 203.3, "v": 54.64}, {"d": 218.6, "v": 55.52}, {"d": 234.1, "v": 56.8}, {"d": 265.9, "v": 59.2}, {"d": 316.4, "v": 60.62}, {"d": 333.3, "v": 58.77}, {"d": 349, "v": 54.01}, {"d": 363.3, "v": 51.42}, {"d": 377.6, "v": 53.41}, {"d": 393, "v": 54.08}, {"d": 407.6, "v": 55.94}, {"d": 424, "v": 58.64}, {"d": 440.2, "v": 58.25}, {"d": 456.4, "v": 58.45}, {"d": 488.9, "v": 56.04}, {"d": 534.2, "v": 51.99}, {"d": 546.7, "v": 38.1}, {"d": 555.4, "v": 39.91}, {"d": 568.8, "v": 47.24}, {"d": 581.6, "v": 47.84}, {"d": 595.4, "v": 48.38}, {"d": 608.5, "v": 50.88}, {"d": 623.7, "v": 56.37}, {"d": 639.8, "v": 59.97}, {"d": 657, "v": 62.51}, {"d": 674.6, "v": 64.19}, {"d": 692.7, "v": 65.88}, {"d": 711.2, "v": 73.78}, {"d": 733.6, "v": 65.77}, {"d": 747.7, "v": 42.22}, {"d": 757.1, "v": 24.61}, {"d": 761.4, "v": 18.84}, {"d": 767.6, "v": 34.92}, {"d": 780.8, "v": 53.94}, {"d": 797.5, "v": 57.87}, {"d": 845.1, "v": 52.37}, {"d": 855.7, "v": 34.67}, {"d": 864.3, "v": 29.71}, {"d": 872.2, "v": 31.21}, {"d": 881.7, "v": 43.67}, {"d": 896.5, "v": 55.01}, {"d": 912.2, "v": 59.28}, {"d": 929.4, "v": 62.43}, {"d": 964.2, "v": 61.33}, {"d": 980.5, "v": 51.83}, {"d": 993, "v": 41.15}, {"d": 1014.8, "v": 40.97}, {"d": 1038.6, "v": 42.63}, {"d": 1062.2, "v": 42.14}, {"d": 1073.7, "v": 37.46}, {"d": 1083, "v": 29.94}, {"d": 1090.3, "v": 24.4}, {"d": 1096.5, "v": 16.41}, {"d": 1099.4, "v": 8.24}, {"d": 1101.1, "v": 6.05}];
+
+const runsData = [originalRunSpeed, run2Speed, run3Speed, run4Speed, run5Speed];
+const RUN_LABELS = ['13:31', '09:31', '11:37', '12:17', '12:49']; // GPX start times (BST), for chart legend
+// Every run's own {d, lat, lon} points, for corner-geometry circle-fitting only
+// (see analyzeCorners()) — kept separate from the canonical routePoints/
+// heading model below, which stays tied to the original run only.
+const allRoutePoints = [routePoints, run2Points, run3Points, run4Points, run5Points];
+const EXCLUDED_GEOMETRY_RUN_IDX = 3; // run4 (activity_23738438725) — see note above
+// Which runs currently count toward Max Speed / diagnostics / corner-panel
+// stats — toggled via the chart legend (a hidden line's data shouldn't be
+// silently mixed into readouts for lines you can't see). Independent of
+// EXCLUDED_GEOMETRY_RUN_IDX, which is a permanent data-quality exclusion.
+let runVisible = runsData.map(() => true);
+function visibleRunsFlat() {
+  return runsData.filter((run, i) => runVisible[i]).flat();
+}
+
+// --- Add a run from a dropped/browsed GPX file, entirely client-side ---
+// Session-only: parsed in-memory and pushed onto runsData/allRoutePoints, not
+// written back into this file — a page refresh loses it. Uses the exact same
+// methodology as every embedded run (haversine cumulative distance,
+// central-difference speed — see gpx_check2.js in the project's own
+// history), so a dropped-in run is directly comparable, not a second data
+// source with a different basis.
+function parseGpxText(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('not valid XML');
+  return Array.from(doc.getElementsByTagName('trkpt')).map(pt => {
+    const lat = parseFloat(pt.getAttribute('lat'));
+    const lon = parseFloat(pt.getAttribute('lon'));
+    const timeEl = pt.getElementsByTagName('time')[0];
+    const t = timeEl ? new Date(timeEl.textContent).getTime() / 1000 : null;
+    return { lat, lon, t };
+  }).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon) && Number.isFinite(p.t));
+}
+
+function processGpxRun(rawPts) {
+  let d = 0;
+  const withD = rawPts.map((p, i) => {
+    if (i > 0) d += haversine(rawPts[i-1].lat, rawPts[i-1].lon, p.lat, p.lon);
+    return { lat: p.lat, lon: p.lon, t: p.t, d };
+  });
+  return withD.map((p, i) => {
+    if (i === 0 || i === withD.length - 1) {
+      const j = i === 0 ? 1 : i - 1;
+      const dt = Math.abs(withD[j].t - p.t) || 1;
+      const dd = Math.abs(withD[j].d - p.d);
+      return Object.assign({}, p, { v: (dd / dt) * 3.6 });
+    }
+    const dt = withD[i+1].t - withD[i-1].t || 1;
+    const dd = withD[i+1].d - withD[i-1].d;
+    return Object.assign({}, p, { v: (dd / dt) * 3.6 });
+  });
+}
+
+function deriveRunLabel(rawPts, filename) {
+  const t0 = rawPts[0] && rawPts[0].t;
+  if (t0) return new Date(t0 * 1000).toISOString().slice(11, 16);
+  return filename.replace(/\.gpx$/i, '').slice(0, 12);
+}
+
+function setUploadStatus(msg, isError) {
+  const el = document.getElementById('uploadStatus');
+  el.textContent = msg;
+  el.className = isError ? 'error' : (msg ? 'success' : '');
+}
+
+function addGpxRun(xmlText, filename, customLabel) {
+  let rawPts;
+  try {
+    rawPts = parseGpxText(xmlText);
+  } catch (e) {
+    setUploadStatus(`${filename}: couldn't parse as GPX`, true);
+    return;
+  }
+  if (rawPts.length < 10) {
+    setUploadStatus(`${filename}: only ${rawPts.length} usable track points — not added`, true);
+    return;
+  }
+  const run = processGpxRun(rawPts);
+  const totalDist = run[run.length - 1].d;
+  if (totalDist < 500 || totalDist > 2000) {
+    setUploadStatus(`${filename}: total distance ${totalDist.toFixed(0)}m doesn't look like this course (~1100m) — not added`, true);
+    return;
+  }
+  const startOffset = haversine(run[0].lat, run[0].lon, routePoints[0].lat, routePoints[0].lon);
+  if (startOffset > 300) {
+    setUploadStatus(`${filename}: start point is ${startOffset.toFixed(0)}m from this course's start — not added`, true);
+    return;
+  }
+
+  runsData.push(run.map(p => ({ d: p.d, v: p.v })));
+  allRoutePoints.push(run.map(p => ({ d: p.d, lat: p.lat, lon: p.lon })));
+  runVisible.push(true);
+  const label = customLabel || deriveRunLabel(rawPts, filename);
+  RUN_LABELS.push(label);
+
+  updateChart();
+  setUploadStatus(`Added "${label}" — ${run.length} points, ${totalDist.toFixed(0)}m. Contributing to track geometry (session only, not saved to the file).`, false);
+}
+
+function handleGpxFiles(fileList, customTitle) {
+  const files = Array.from(fileList);
+  files.forEach((file, i) => {
+    if (!/\.gpx$/i.test(file.name)) { setUploadStatus(`${file.name}: not a .gpx file`, true); return; }
+    const label = customTitle ? (files.length > 1 ? `${customTitle} ${i + 1}` : customTitle) : null;
+    const reader = new FileReader();
+    reader.onload = evt => addGpxRun(evt.target.result, file.name, label);
+    reader.onerror = () => setUploadStatus(`${file.name}: couldn't read file`, true);
+    reader.readAsText(file);
+  });
+}
+
+const g = 9.81;
+const RHO = 1.225; // kg/m³, standard sea-level air density — fixed, not user-editable.
+                    // Harewood's altitude (~120m) and typical UK conditions only shift
+                    // this by ~1-2%, well inside the model's other uncertainties.
+let paceChartInstance = null;
+const runColors = ['#3498DB', '#2E86C1', '#16A085', '#138D75', '#0E6251', '#0B5345', '#082B1B', '#1F618D'];
+
+// Wind mode: 'manual' (compass dial, user-set) or 'actual' (recorded/estimated
+// conditions for this run's date). Both dials write here.
+let windMode = 'manual';
+let actualWindDir = 225; // placeholder until a verified reading is confirmed
+
+function getParams() {
+  return {
+    mass: parseFloat(document.getElementById('mass').value),
+    cda: parseFloat(document.getElementById('cda').value),
+    crr: parseFloat(document.getElementById('crr').value),
+    rho: RHO,
+    mu: parseFloat(document.getElementById('mu').value),
+    brakeConfidence: parseFloat(document.getElementById('brakeConfidence').value),
+    windSpeed: windMode === 'actual'
+      ? parseFloat(document.getElementById('windSpeedActual').value)
+      : parseFloat(document.getElementById('windSpeed').value),
+    windDir: windMode === 'actual' ? actualWindDir : parseFloat(document.getElementById('windDir').value)
+  };
+}
+
+// Real finish line, located by projecting two what3words points
+// (pancakes.scrapping.slippers / attic.soaps.glory, marking either side of
+// the actual finish gate, ~9m apart) onto the recorded GPS route: the
+// closest point on the polyline to the gate's midpoint sits only ~0.7m off
+// the recorded track, at d≈1078m — falling inside the Chippy's corner zone
+// (988-1093m) and about 24m before the GPX recording itself stops (d=1102).
+// So the run finishes mid-corner, and the extra ~24m of recorded data beyond
+// the line explains why Chippy's apex data always looked slightly off
+// (previously attributed to "the recording stops mid-corner" — really it's
+// "the finish line is mid-corner", the recording just continues past it).
+const FINISH_DISTANCE = 1078;
+
+// --- Named corners, located by GPS heading/curvature (not speed) ---
+// Corner identity and direction are fixed physical features of Harewood Speed
+// Hillclimb (verified against the published course guide). You run the hill
+// top-to-bottom, which is the reverse of the official bottom-to-top direction,
+// so the corner order here is: Quarry -> Farmhouse/Croisdale -> Orchard -> Willow ->
+// Country -> Chippy's. Esses and Clark's (the two corners closest to the
+// official start line) aren't in the data, matching "we run it slightly short."
+// Distance ranges below were located from this run's GPX heading-change data.
+const CORNER_DEFS = [
+  { name: "Quarry",    d0: 16,  d1: 63  },
+  { name: "Farmhouse/Croisdale", d0: 270, d1: 421 },
+  { name: "Orchard",   d0: 503, d1: 594 },
+  { name: "Willow",    d0: 696, d1: 830 },
+  { name: "Country",   d0: 830, d1: 922 },
+  { name: "Chippy's",  d0: 988, d1: 1093 }
+];
+
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const phi1 = lat1 * Math.PI / 180, phi2 = lat2 * Math.PI / 180;
+  const dLambda = (lon2 - lon1) * Math.PI / 180;
+  const x = Math.sin(dLambda) * Math.cos(phi2);
+  const y = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+  return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
+}
+function angDiff(a, b) { return ((a - b + 180) % 360 + 360) % 360 - 180; }
+
+// Heading (compass bearing of travel direction) per route point, computed once
+// and shared by both corner detection and the wind model below — the track
+// heading changes constantly (it's a hillclimb full of corners), so a fixed
+// wind direction gives a different headwind/tailwind/crosswind mix at every
+// point on the course, not just one number for the whole run.
+const routeHeadings = [0];
+for (let i = 1; i < routePoints.length; i++) {
+  routeHeadings.push(bearingDeg(routePoints[i-1].lat, routePoints[i-1].lon, routePoints[i].lat, routePoints[i].lon));
+}
+function getHeadingAtDistance(d) {
+  if (routePoints.length < 2) return 0;
+  if (d <= routePoints[0].d) return routeHeadings[1];
+  if (d >= routePoints[routePoints.length-1].d) return routeHeadings[routePoints.length-1];
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    if (d >= routePoints[i].d && d <= routePoints[i+1].d) return routeHeadings[i+1];
+  }
+  return 0;
+}
+
+// Local (point-by-point) curvature radius — this is what the physics grip
+// limit actually clamps to. Treating a whole named corner as one constant
+// radius across its full distance span (up to 151m for Farmhouse/Croisdale) flat-lined
+// the speed cap through entry/exit sections that aren't really at the
+// tightest point: the actual GPS trace enters Farmhouse/Croisdale's nominal zone at
+// 66km/h, dips to 52 at the true apex, and climbs back to 57+ before the zone
+// ends, but a single-radius clamp held the whole span at 50.6. Each interior
+// route point gets a radius from the turn angle either side of it and the
+// arc spanning its neighbours; endpoints and near-zero turns (straights) fall
+// back to a large "effectively unconstrained" radius rather than a
+// divide-by-zero.
+const STRAIGHT_RADIUS = 3000; // m — grip limit at this radius is far above any achievable speed here
+// Immutable baseline (never touched again) vs. the working copy actually
+// read by the physics (localRadiusAtDistance). applyCornerFitResults() below
+// rescales the working copy from THIS baseline every time it runs — not
+// cumulatively — so it can be safely re-run whenever run visibility changes
+// (see runVisible) without drifting further off with each toggle.
+const rawPointRadius = routePoints.map((p, i) => {
+  if (i === 0 || i === routePoints.length - 1) return STRAIGHT_RADIUS;
+  const turn = angDiff(routeHeadings[i+1], routeHeadings[i]);
+  const arc = routePoints[i+1].d - routePoints[i-1].d;
+  const turnRad = Math.abs(turn * Math.PI / 180);
+  return turnRad > 0.001 ? Math.min(STRAIGHT_RADIUS, arc / turnRad) : STRAIGHT_RADIUS;
+});
+let pointRadius = rawPointRadius.slice();
+function localRadiusAtDistance(d) {
+  if (d <= routePoints[0].d) return pointRadius[0];
+  if (d >= routePoints[routePoints.length-1].d) return pointRadius[pointRadius.length-1];
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    if (d >= routePoints[i].d && d <= routePoints[i+1].d) {
+      const t = (d - routePoints[i].d) / (routePoints[i+1].d - routePoints[i].d || 1);
+      return pointRadius[i] + t * (pointRadius[i+1] - pointRadius[i]);
+    }
+  }
+  return STRAIGHT_RADIUS;
+}
+
+// Analyse each named corner: geometric radius + direction from GPS curvature
+// (vehicle-independent — same for anything driving this course), plus this
+// run's actual recorded apex speed kept purely as a validation reference —
+// it plays no role in the live model. Braking point and intensity are no
+// longer fitted per corner; they fall out of the forward/backward envelope
+// pass in predictPaceWithDiagnostics() below, driven only by vehicle params
+// (mass, CdA, Crr, μ, brake confidence) and this radius/direction geometry.
+function analyzeCorners() {
+  const headings = routeHeadings;
+  const turns = [0];
+  for (let i = 1; i < routePoints.length; i++) turns.push(angDiff(headings[i], headings[i-1]));
+  // Original run only (runsData[0]) — this is the coordinate frame z.dist
+  // anchors everything else to (routePoints, CORNER_DEFS). Now that runsData
+  // holds 5 runs with different total distances, runsData.flat() would let a
+  // low-speed point from a DIFFERENT run's own line hijack this run's apex
+  // position — e.g. Willow's anchor landing at 761m instead of ~800m because
+  // some other run genuinely slowed down at d≈761 in ITS OWN coordinate
+  // frame. Cross-run apex speed/geometry is handled separately and correctly
+  // by locateCornerInRun() below (matches by physical lat/lon per run), not
+  // by pretending every run shares one distance axis.
+  const dataEnd = Math.max(...runsData[0].map(p => p.d));
+  const allRunPts = runsData[0];
+
+  return CORNER_DEFS.map((c, ci) => {
+    const idx = [];
+    for (let i = 0; i < routePoints.length; i++) if (routePoints[i].d >= c.d0 && routePoints[i].d <= c.d1) idx.push(i);
+    let totalTurn = 0;
+    for (const i of idx) if (i > 0) totalTurn += turns[i];
+    // Tightest point within the named span — this is what the physics grip
+    // limit actually clamps to (see pointRadius/localRadiusAtDistance above),
+    // not an aggregate arc/turn-angle radius averaged over the whole nominal
+    // zone, which understates how tight the real apex is.
+    const radiiInZone = idx.filter(i => i > 0 && i < routePoints.length - 1).map(i => pointRadius[i]);
+    const radius = radiiInZone.length ? Math.min(...radiiInZone) : null;
+    // Bearing convention: heading increasing (turning clockwise, e.g. 10°→30°)
+    // is a RIGHT-hand turn in real-world driving sense. This was inverted
+    // before (labelled it 'left'), which is why corners like Quarry showed as
+    // right-handers when you actually turn left through them.
+    const direction = totalTurn > 0 ? 'right' : 'left';
+
+    // Recorded apex speed: lowest actual speed within this corner's own range
+    // (small ±15m margin so braking-into/exiting-out-of the apex still counts,
+    // without bleeding into the next named corner). Exception: the last corner
+    // (Chippy's) has no "after" — the recording stops mid-corner — so its
+    // window is extended all the way to the true end of the data. This is only
+    // used to derive a sensible default brake %; the live model doesn't depend
+    // on it directly.
+    const isLastCorner = ci === CORNER_DEFS.length - 1;
+    const winStart = Math.max(0, c.d0 - 15);
+    const winEnd = isLastCorner ? dataEnd : Math.min(c.d1 + 15, CORNER_DEFS[ci+1].d0 - 1);
+    const inWindow = allRunPts.filter(p => p.d >= winStart && p.d <= winEnd);
+    let recordedApexSpeed = null, apexDist = null;
+    if (inWindow.length) {
+      const minPt = inWindow.reduce((a, b) => (b.v < a.v ? b : a));
+      // Reject a "minimum" that's really just the standing-start ramp (Quarry
+      // sits right after the launch box; the car isn't yet fast enough for its
+      // ~19m radius to be a binding constraint, so there's no real apex here).
+      if (!(minPt.d < 20 && minPt.v < 10)) {
+        recordedApexSpeed = minPt.v;
+        apexDist = minPt.d;
+      }
+    }
+
+    return { name: c.name, d0: c.d0, d1: c.d1,
+             dist: apexDist !== null ? apexDist : (c.d0 + c.d1) / 2,
+             // baseRadius is frozen (the original single-run 3-point estimate);
+             // radius is the live display/physics value, overwritten by
+             // applyCornerFitResults() and safe to recompute repeatedly
+             // because it's always rescaled from baseRadius, not from itself.
+             radius, baseRadius: radius, direction, recordedApexSpeed };
+  });
+}
+
+const cornerZones = analyzeCorners();
+
+// --- Multi-run corner geometry: circle-fit radius, not 3-point curvature ---
+// pointRadius above (3-point heading-difference per route point) is a
+// second-derivative-like operation on raw GPS position, which amplifies
+// jitter badly: cross-checking it against the 4 additional runs showed
+// implied grip (μ) swinging from 0.15 to 0.76 at the same two corners, while
+// apex *speed* at those corners stayed tightly clustered — noise, not real
+// physics. Fitting a circle to every point in a corner's window jointly
+// (least-squares, not differencing 3 points at a time) is far more robust,
+// and doing it independently per run and taking the median gives a
+// track-geometry estimate that isn't hostage to any single recording's GPS
+// noise.
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Local flat-earth ENU metres relative to a reference point — fine at the
+// tens-of-metres scale used here (same approach as the finish-line
+// projection).
+function toLocalXY(lat, lon, refLat, refLon) {
+  const toRad = x => x * Math.PI / 180;
+  const north = (lat - refLat) * toRad(1) * 6371000;
+  const east = (lon - refLon) * toRad(1) * 6371000 * Math.cos(toRad(refLat));
+  return { x: east, y: north };
+}
+
+function solve3x3(A, b) {
+  const det3 = m => m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1]) - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0]) + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+  const D = det3(A);
+  if (Math.abs(D) < 1e-9) return null;
+  const replaceCol = (m, col, vec) => m.map((row, i) => row.map((v, j) => j === col ? vec[i] : v));
+  return [det3(replaceCol(A,0,b))/D, det3(replaceCol(A,1,b))/D, det3(replaceCol(A,2,b))/D];
+}
+
+// Least-squares circle fit (Kåsa method): minimise Σ(x²+y²+Dx+Ey+F)², which
+// is linear in D,E,F — solve the resulting 3×3 normal-equations system
+// directly. radius = sqrt(D²/4+E²/4−F). Returns null if there aren't enough
+// points, or the fit is degenerate.
+function fitCircle(points) {
+  if (points.length < 4) return null;
+  let Sxx=0, Sxy=0, Syy=0, Sx=0, Sy=0, Sxz=0, Syz=0, Sz=0;
+  for (const p of points) {
+    const z = p.x*p.x + p.y*p.y;
+    Sxx += p.x*p.x; Sxy += p.x*p.y; Syy += p.y*p.y;
+    Sx += p.x; Sy += p.y;
+    Sxz += p.x*z; Syz += p.y*z; Sz += z;
+  }
+  const sol = solve3x3([[Sxx,Sxy,Sx],[Sxy,Syy,Sy],[Sx,Sy,points.length]], [-Sxz,-Syz,-Sz]);
+  if (!sol) return null;
+  const [D,E,F] = sol;
+  const r2 = (D*D + E*E)/4 - F;
+  return r2 > 0 ? Math.sqrt(r2) : null;
+}
+
+function interpolateRoutePoint(pts, d) {
+  if (d <= pts[0].d) return pts[0];
+  if (d >= pts[pts.length-1].d) return pts[pts.length-1];
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (d >= pts[i].d && d <= pts[i+1].d) {
+      const t = (d - pts[i].d) / (pts[i+1].d - pts[i].d || 1);
+      return { lat: pts[i].lat + t*(pts[i+1].lat-pts[i].lat), lon: pts[i].lon + t*(pts[i+1].lon-pts[i].lon), d };
+    }
+  }
+  return pts[pts.length-1];
+}
+
+// Locate a named corner's own apex + circle-fit window inside ONE run's own
+// points. Distance-along-track drifts between runs (total lengths ranged
+// 1072-1112m across the 5 available), so a corner's known d0/d1 (from the
+// original run's own axis) can't be reused against a different run —
+// match by physical location instead: nearest point to the corner's known
+// apex lat/lon (from the original run), then a fixed-metre window either
+// side of THAT run's own d-axis, clipped at the midpoint to neighbouring
+// corners so the window can't bleed into them.
+const CORNER_FIT_WINDOW_M = 50;
+function locateCornerInRun(runIdx, apexLat, apexLon, loOffset, hiOffset) {
+  const pts = allRoutePoints[runIdx];
+  let bestI = -1, bestDist = Infinity;
+  pts.forEach((p, i) => {
+    const dd = haversine(p.lat, p.lon, apexLat, apexLon);
+    if (dd < bestDist) { bestDist = dd; bestI = i; }
+  });
+  if (bestI < 0) return null;
+  const apexD = pts[bestI].d;
+  const windowPts = pts.filter(p => p.d >= apexD - loOffset && p.d <= apexD + hiOffset);
+
+  // This run's own apex speed: local minimum within a (smaller, ≤20m) window
+  // of the matched point — the true speed minimum and the geometric tightest
+  // point aren't always at the identical distance, but shouldn't be allowed
+  // to wander further than the geometry window does either.
+  const sLo = Math.min(loOffset, 20), sHi = Math.min(hiOffset, 20);
+  const speedWindow = runsData[runIdx].filter(p => p.d >= apexD - sLo && p.d <= apexD + sHi);
+  const speed = speedWindow.length ? Math.min(...speedWindow.map(p => p.v)) : null;
+
+  return { apexD, windowPts, speed };
+}
+
+// Fit + combine across runs for every corner. Two independently-filtered
+// concerns: radii (track geometry — always every run except
+// EXCLUDED_GEOMETRY_RUN_IDX, a permanent data-quality exclusion, never
+// affected by the legend's show/hide toggle) vs. perRunApex (the "actual"
+// comparison speed shown in the corner panel — respects runVisible, since
+// that's genuinely about which recorded data you're currently comparing
+// against, not about the track's physical shape).
+const MIN_FIT_HALFWIDTH_M = 15; // floor so a corner whose apex sits right at
+// its own d0/d1 boundary (e.g. Chippy's, where the recording ends near the
+// apex) doesn't get an unusably tiny fit window
+function fitCornerGeometryAcrossRuns(zones) {
+  return zones.map((z, ci) => {
+    if (z.radius === null) return { fittedRadius: null, spread: null, runCount: 0, perRunApex: [] };
+    const anchor = interpolateRoutePoint(routePoints, z.dist);
+    // Clip the window to THIS corner's own known extent (apex-to-d0,
+    // apex-to-d1 in the original run's coordinate frame), not just the
+    // midpoint to the neighbouring corner's apex — adjacent, opposite-curving
+    // corners (e.g. Willow ends exactly where Country starts, d=830, no
+    // straight between them) can otherwise let a point already curving the
+    // OTHER way bleed into this corner's fit and badly inflate the radius.
+    const prevGap = ci > 0 ? (z.dist - zones[ci-1].dist) / 2 : Infinity;
+    const nextGap = ci < zones.length - 1 ? (zones[ci+1].dist - z.dist) / 2 : Infinity;
+    const loOffset = Math.min(CORNER_FIT_WINDOW_M, Math.max(z.dist - z.d0, MIN_FIT_HALFWIDTH_M), prevGap);
+    const hiOffset = Math.min(CORNER_FIT_WINDOW_M, Math.max(z.d1 - z.dist, MIN_FIT_HALFWIDTH_M), nextGap);
+
+    const radii = [];
+    const perRunApex = [];
+    for (let runIdx = 0; runIdx < allRoutePoints.length; runIdx++) {
+      const loc = locateCornerInRun(runIdx, anchor.lat, anchor.lon, loOffset, hiOffset);
+      if (!loc) continue;
+      // Track geometry is a physical property of the road — it always uses
+      // every run except the one permanently excluded for data-quality
+      // reasons (EXCLUDED_GEOMETRY_RUN_IDX), regardless of which lines are
+      // currently shown on the chart. Hiding a run to compare against a
+      // subset of actual data shouldn't also move the model's own predicted
+      // performance (grip limit, predicted apex, run time all derive from
+      // this radius). Only the "actual" comparison number below
+      // (recordedApexSpeed) respects the legend toggle.
+      if (runIdx !== EXCLUDED_GEOMETRY_RUN_IDX && loc.windowPts.length >= 4) {
+        const ref = loc.windowPts[0];
+        const localPts = loc.windowPts.map(p => toLocalXY(p.lat, p.lon, ref.lat, ref.lon));
+        const r = fitCircle(localPts);
+        if (r && r > 3 && r < STRAIGHT_RADIUS) radii.push(r);
+      }
+      if (runVisible[runIdx]) perRunApex.push({ runIdx, speed: loc.speed });
+    }
+    if (radii.length === 0) return { fittedRadius: null, spread: null, runCount: 0, perRunApex };
+    radii.sort((a,b) => a-b);
+    const mid = Math.floor(radii.length/2);
+    const median = radii.length % 2 ? radii[mid] : (radii[mid-1]+radii[mid])/2;
+    return { fittedRadius: median, spread: [radii[0], radii[radii.length-1]], runCount: radii.length, perRunApex };
+  });
+}
+
+// Apply the robust radius to each corner: rescale the existing single-run
+// pointRadius curve (within that corner's own d0-d1 span only) so its
+// minimum matches the new median — this preserves the curve's *shape*
+// (entry/exit tapering, which fixed the earlier flat-lining problem) while
+// correcting its *magnitude* to the cross-run-validated value, rather than
+// silently replacing one noisy number with another.
+function applyCornerFitResults(zones, fitResults) {
+  // Reset from the immutable baseline every time — this function gets
+  // re-run whenever run visibility changes, and rescaling from the previous
+  // result (rather than the original) would compound errors across toggles.
+  pointRadius = rawPointRadius.slice();
+  zones.forEach((z, i) => {
+    const fit = fitResults[i];
+    z.radiusSpread = null;
+    z.radiusRunCount = 0;
+    if (fit && fit.fittedRadius) {
+      const scale = fit.fittedRadius / z.baseRadius;
+      routePoints.forEach((p, pi) => {
+        if (p.d >= z.d0 && p.d <= z.d1) pointRadius[pi] *= scale;
+      });
+      z.radius = fit.fittedRadius;
+      z.radiusSpread = fit.spread;
+      z.radiusRunCount = fit.runCount;
+    } else {
+      z.radius = z.baseRadius; // no fit available (e.g. every contributing run hidden) — fall back cleanly
+    }
+    // Cross-run actual apex speed: median across every run that could be
+    // matched (including the geometry-excluded one — its pace data is still
+    // valid, just not its line) — more representative than one recording.
+    const speeds = fit ? fit.perRunApex.map(p => p.speed).filter(v => v != null) : [];
+    if (speeds.length) {
+      speeds.sort((a,b) => a-b);
+      const mid = Math.floor(speeds.length/2);
+      z.recordedApexSpeed = speeds.length % 2 ? speeds[mid] : (speeds[mid-1]+speeds[mid])/2;
+      z.recordedApexSpeedRunCount = speeds.length;
+    } else {
+      z.recordedApexSpeed = null; // every run that could show this got hidden
+      z.recordedApexSpeedRunCount = 0;
+    }
+  });
+}
+
+// Recompute corner geometry + apex speed from whichever runs are currently
+// visible (see runVisible) — cheap enough (tiny dataset, 6 corners) to just
+// re-run in full rather than maintain incremental state.
+function refreshCornerGeometry() {
+  const fitResults = fitCornerGeometryAcrossRuns(cornerZones);
+  applyCornerFitResults(cornerZones, fitResults);
+  return fitResults;
+}
+let cornerFitResults = refreshCornerGeometry();
+
+// Recalibrate μ from Willow/Country (the two corners confirmed not
+// deliberately braked, per the rider's own account) using the now-robust
+// fitted radii and each counted run's own apex speed there — replacing the
+// earlier single-run-derived 0.4. Orchard/Chippy's stay excluded: apex speed
+// there reflects deliberate braking (or, for Chippy's, a truncated
+// recording), not grip — that reasoning doesn't change with more data.
+function calibrateMu(zones, fitResults) {
+  const targets = ['Willow', 'Country'];
+  const implied = [];
+  zones.forEach((z, i) => {
+    if (!targets.includes(z.name)) return;
+    const fit = fitResults[i];
+    if (!fit || !fit.fittedRadius) return;
+    fit.perRunApex.forEach(({ runIdx, speed }) => {
+      if (speed == null || runIdx === EXCLUDED_GEOMETRY_RUN_IDX) return;
+      implied.push((speed/3.6) ** 2 / (g * fit.fittedRadius));
+    });
+  });
+  if (!implied.length) return 0.4;
+  implied.sort((a,b) => a-b);
+  const mid = Math.floor(implied.length/2);
+  return implied.length % 2 ? implied[mid] : (implied[mid-1]+implied[mid])/2;
+}
+const CALIBRATED_MU = calibrateMu(cornerZones, cornerFitResults);
+
+const CORNER_COLORS = ['#E74C3C', '#F39C12', '#8E44AD', '#27AE60', '#16A085', '#2980B9'];
+
+// Draws a light vertical band across each corner's distance range (d0-d1),
+// colour-matched to that corner, behind the data lines.
+const cornerBandsPlugin = {
+  id: 'cornerBands',
+  beforeDatasetsDraw(chart) {
+    const { ctx, chartArea, scales } = chart;
+    if (!chartArea) return;
+    ctx.save();
+    cornerZones.forEach((z, i) => {
+      const xStart = scales.x.getPixelForValue(z.d0);
+      const xEnd = scales.x.getPixelForValue(z.d1);
+      ctx.fillStyle = CORNER_COLORS[i % CORNER_COLORS.length] + '20'; // ~12% opacity
+      ctx.fillRect(xStart, chartArea.top, xEnd - xStart, chartArea.bottom - chartArea.top);
+    });
+    ctx.restore();
+  }
+};
+
+function rawGradientAtDistance(d) {
+  if (d <= elevationProfile[0].d) {
+    // Use the first segment's actual gradient instead of hard-zeroing it — the
+    // old hard-zero here combined with the old fixed-step integrator to silently
+    // mask a stall at the very start of the run (see predictPaceWithDiagnostics).
+    const d1 = elevationProfile[0].d, e1 = elevationProfile[0].ele;
+    const d2 = elevationProfile[1].d, e2 = elevationProfile[1].ele;
+    return d2 > d1 ? -(e2 - e1) / (d2 - d1) : 0;
+  }
+  if (d >= elevationProfile[elevationProfile.length-1].d) return 0;
+  for (let i = 0; i < elevationProfile.length - 1; i++) {
+    if (d >= elevationProfile[i].d && d <= elevationProfile[i+1].d) {
+      const d1 = elevationProfile[i].d;
+      const e1 = elevationProfile[i].ele;
+      const d2 = elevationProfile[i+1].d;
+      const e2 = elevationProfile[i+1].ele;
+      const dE = e2 - e1;
+      const dD = d2 - d1;
+      return -dE / dD;
+    }
+  }
+  return 0;
+}
+
+// UNCONFIRMED ASSUMPTION, not measured data: with mass corrected to the real
+// 125.3kg and CdA/Crr at their measured values, pure coast physics (no
+// braking/cornering active) under-predicted actual speed by ~5-6.5 km/h
+// across d=30-260m — a corner-free, braking-free straight, so not explained
+// by anything in the cornering/braking model. Every plausible small-tweak
+// explanation (CdA down to 0.02, Crr down to 0.0005, a 40km/h tailwind) fell
+// far short even at physically implausible extremes, which rules out normal
+// parameter uncertainty. What DOES close it almost exactly (RMSE 0.66 km/h
+// across 6 checkpoints) is a gradient correction that decays with distance —
+// consistent with a barometric altimeter not yet settled in the first
+// ~20-30s after power-on (a known Garmin failure mode), rather than genuine
+// terrain. Confirmed with the user this is more plausible than a push-start
+// (there wasn't one). Not independently verified against a real altitude
+// reference — revisit if a barometric log, known start-line elevation, or a
+// second GPX run becomes available. Fades to negligible by d≈150-200m, so it
+// does not affect the rest of the course (corners, later straights).
+function altimeterSettlingScale(d) {
+  const A = 0.78, L = 50; // fit to this run's own straight-line trace, see above
+  return 1 + A * Math.exp(-d / L);
+}
+
+function getGradientAtDistance(d) {
+  return rawGradientAtDistance(d) * altimeterSettlingScale(d);
+}
+
+// Bootstrapped starting speed: with a flat/near-flat gradient at d=0 and pure
+// rolling-resistance-only deceleration, a body at exactly v=0 mathematically
+// never leaves rest (no force can accelerate it). Real launches always have
+// *some* non-zero speed within the first GPS sample. Anchor to that rather
+// than pretending the very first instant is exactly solvable from rest.
+// Averaged across all 5 runs now that there's more than one — a slightly
+// more representative launch speed than any single recording's own noise.
+const V0 = runsData.length
+  ? runsData.reduce((sum, run) => sum + (run[0] ? run[0].v : 0), 0) / runsData.length
+  : 3;
+
+// --- Physics: forward (coast) / backward (max-brake) envelope method ---
+// Braking point and intensity are NOT fitted per corner. A forward pass gives
+// the fastest possible speed under gravity+drag+rr alone (clamped to each
+// corner's physical grip limit, μ√(gr), while inside it). A backward pass
+// works back from the finish and shows the fastest speed the car could be
+// carrying at any point and still shed it in time for every downstream
+// corner, using the max brake force the vehicle+driver can commit
+// (brakeConfidence% × μ×g — same tyre grip budget as cornering, per user
+// call). Actual achievable speed at any point is the lower of the two:
+// braking only appears where genuinely required, and where/how hard it needs
+// to be comes entirely from vehicle mass/CdA/Crr/μ and the track's real
+// corner radii/gradient — not from fitting this run's apex speeds.
+function accelAt(d, v_kmh, params, brakeOn) {
+  const gradient = getGradientAtDistance(d);
+  const v_ms = v_kmh / 3.6;
+  const F_grav = params.mass * g * gradient;
+
+  // Wind: the track's heading changes constantly through the corners, so a
+  // fixed compass wind direction produces a different headwind/tailwind mix
+  // at every point on the course. windDir follows meteorological convention
+  // (direction the wind is blowing FROM), so it blows TOWARD windDir+180.
+  // Only the along-track component matters for drag here — crosswind's
+  // effect on yawed CdA is a real but second-order effect this simple model
+  // doesn't attempt.
+  const heading = getHeadingAtDistance(d);
+  const windSpeed_ms = params.windSpeed / 3.6;
+  const windBearingTo = (params.windDir + 180) % 360;
+  const tailwind_ms = windSpeed_ms * Math.cos((windBearingTo - heading) * Math.PI / 180);
+  const v_rel = v_ms - tailwind_ms; // relative airspeed along the direction of travel
+  // Signed so a tailwind stronger than the car's own speed correctly pushes
+  // forward (v_rel negative) rather than just "less drag".
+  const F_drag = 0.5 * params.rho * params.cda * v_rel * Math.abs(v_rel);
+  const F_rr = params.crr * params.mass * g;
+  const F_brake = brakeOn ? (params.brakeConfidence / 100) * Math.max(0, params.mu) * g * params.mass : 0;
+
+  return (F_grav - F_drag - F_rr - F_brake) / params.mass;
+}
+
+function cornerLimitAt(d, params) {
+  return Math.sqrt(Math.max(0, params.mu) * g * localRadiusAtDistance(d)) * 3.6;
+}
+
+function forwardEnvelope(params) {
+  const dt = 0.1, dMax = 1120, tMax = 300;
+  let v = V0, d = 0, t = 0;
+  const ds = [d], vs = [v];
+  while (d < dMax && t < tMax) {
+    const a = accelAt(d, v, params, false);
+    let v_new = Math.max(0, v + a * dt * 3.6);
+    // Same trapezoidal distance step as before — see history: a fixed-step
+    // integrator here previously masked a large launch-phase under-prediction.
+    const d_new = d + ((v + v_new) / 2 / 3.6) * dt;
+    v_new = Math.min(v_new, cornerLimitAt(d_new, params));
+    d = d_new; v = v_new; t += dt;
+    ds.push(d); vs.push(v);
+  }
+  return { ds, vs };
+}
+
+function backwardEnvelope(params) {
+  const dt = 0.1, dMax = 1120, tMax = 300;
+  let v = 250, d = dMax, t = 0; // 250 km/h ceiling = effectively unconstrained at the finish
+  const ds = [d], vs = [v];
+  while (d > 0 && t < tMax) {
+    const a = accelAt(d, v, params, true); // max available brake force engaged throughout
+    let v_prev = Math.max(0, v - a * dt * 3.6);
+    const d_prev = d - ((v + v_prev) / 2 / 3.6) * dt;
+    v_prev = Math.min(v_prev, cornerLimitAt(d_prev, params), 250);
+    d = d_prev; v = v_prev; t += dt;
+    ds.push(d); vs.push(v);
+  }
+  ds.reverse(); vs.reverse();
+  return { ds, vs };
+}
+
+// Binary-search linear interpolation into a {ds, vs} trace (ds ascending).
+function sampleTrace(trace, d) {
+  const { ds, vs } = trace;
+  if (d <= ds[0]) return vs[0];
+  if (d >= ds[ds.length - 1]) return vs[vs.length - 1];
+  let lo = 0, hi = ds.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (ds[mid] <= d) lo = mid; else hi = mid;
+  }
+  const span = ds[hi] - ds[lo] || 1;
+  const t = (d - ds[lo]) / span;
+  return vs[lo] + t * (vs[hi] - vs[lo]);
+}
+
+function predictPaceWithDiagnostics(params) {
+  const dMax = 1120;
+  const fwd = forwardEnvelope(params);
+  const bwd = backwardEnvelope(params);
+
+  // Merge onto a uniform 1m grid: the actual achievable speed at each point
+  // is whichever envelope is lower — coasting/accelerating where the forward
+  // pass governs, braking wherever the backward (max-brake) pass is binding.
+  const fwdV = [], bwdV = [], mergedV = [];
+  for (let d = 0; d <= dMax; d++) {
+    const fv = sampleTrace(fwd, d);
+    const bv = sampleTrace(bwd, d);
+    fwdV.push(fv); bwdV.push(bv); mergedV.push(Math.min(fv, bv));
+  }
+
+  // Total run time: trapezoidal integration of dt = dd / v_avg along the
+  // merged (actually-achievable) trace, stopping at the real finish line
+  // (FINISH_DISTANCE), not the simulation's safety-margin extent (dMax) —
+  // the model still simulates a bit past the line for numerical margin, but
+  // that shouldn't count toward the timed run.
+  let totalTime = 0;
+  for (let d = 1; d <= FINISH_DISTANCE; d++) {
+    const vAvg_ms = ((mergedV[d-1] + mergedV[d]) / 2) / 3.6;
+    if (vAvg_ms > 0.01) totalTime += 1 / vAvg_ms;
+  }
+
+  // Energy accounting over the timed run (0 to FINISH_DISTANCE): gravitational
+  // PE released — using the same corrected gradient the physics actually
+  // integrates (see altimeterSettlingScale), so this stays self-consistent
+  // with Run Time above — versus what's dissipated to rolling resistance
+  // (constant force × distance, exact), aerodynamic drag, and the "extra"
+  // restraint the actual merged trace implies beyond gravity/drag/rr alone.
+  // That extra force is whatever's needed to explain the trace's own
+  // acceleration at each point (mass × v × dv/dd) that gravity/drag/rr don't
+  // already account for — split into Cornering (while genuinely inside a
+  // named corner's own d0-d1 span, i.e. grip holding the car to its curve)
+  // vs Braking (everywhere else the backward/max-brake envelope is binding —
+  // shedding speed on the straight before a corner). All Joules, shown in
+  // kJ. These four won't sum exactly to Energy Available: some of it
+  // remains as kinetic energy at the finish line, since the car is still
+  // moving there, not stationary.
+  let energyAvailable = 0, energyDrag = 0, energyCornering = 0, energyBraking = 0;
+  for (let d = 1; d <= FINISH_DISTANCE; d++) {
+    const F_grav = params.mass * g * getGradientAtDistance(d - 0.5);
+    energyAvailable += F_grav; // × 1m step
+
+    const v_ms = ((mergedV[d-1] + mergedV[d]) / 2) / 3.6;
+    const heading = getHeadingAtDistance(d - 0.5);
+    const windSpeed_ms = params.windSpeed / 3.6;
+    const windBearingTo = (params.windDir + 180) % 360;
+    const tailwind_ms = windSpeed_ms * Math.cos((windBearingTo - heading) * Math.PI / 180);
+    const v_rel = v_ms - tailwind_ms;
+    const F_drag = 0.5 * params.rho * params.cda * v_rel * Math.abs(v_rel);
+    energyDrag += F_drag; // × 1m step
+
+    const F_rr = params.crr * params.mass * g;
+    const dNext = Math.min(d + 1, dMax), dPrev = d - 1;
+    const dv_dd = ((mergedV[dNext] - mergedV[dPrev]) / 3.6) / (dNext - dPrev); // (m/s) per metre
+    const F_actualNet = params.mass * v_ms * dv_dd;
+    const F_extra = (F_grav - F_drag - F_rr) - F_actualNet; // positive = extra retarding force present
+    if (F_extra > 0.01) {
+      const inCorner = cornerZones.some(z => d >= z.d0 && d <= z.d1);
+      if (inCorner) energyCornering += F_extra; else energyBraking += F_extra; // × 1m step
+    }
+  }
+  const energyRR = params.crr * params.mass * g * FINISH_DISTANCE;
+
+  const predicted = [];
+  for (let d = 0; d <= dMax; d += 10) predicted.push({ x: d, y: mergedV[d] });
+
+  // Diagnostics by section. First 100m excluded: GPS position jitter (~2-3m) is a
+  // large fraction of actual displacement at low speed, which corrupts the
+  // distance-tagging of early samples — not a physics or gradient error.
+  const sections = [
+    {start: 100, end: 400, label: 'Launch to Farmhouse/Croisdale zone (100–400m)'},
+    {start: 400, end: 700, label: 'Farmhouse/Croisdale to Orchard (400–700m)'},
+    {start: 700, end: 950, label: 'Orchard to Willow (700–950m)'},
+    {start: 950, end: 1100, label: 'Willow to finish (950–1100m)'}
+  ];
+
+  const diagnostics = [];
+  for (let sec of sections) {
+    const pred_slice = mergedV.slice(sec.start, Math.min(sec.end, dMax) + 1);
+    let actual_in = visibleRunsFlat().filter(p => p.d >= sec.start && p.d <= sec.end);
+
+    if (pred_slice.length > 0 && actual_in.length > 0) {
+      const pred_mean = pred_slice.reduce((a,v) => a + v, 0) / pred_slice.length;
+      const actual_mean = actual_in.reduce((a,p) => a + p.v, 0) / actual_in.length;
+      const pred_max = Math.max(...pred_slice);
+      const actual_max = Math.max(...actual_in.map(p => p.v));
+
+      let rmse = 0;
+      for (let ap of actual_in) {
+        const predAtD = mergedV[Math.round(Math.min(dMax, Math.max(0, ap.d)))];
+        rmse += Math.pow(predAtD - ap.v, 2);
+      }
+      rmse = Math.sqrt(rmse / actual_in.length);
+
+      diagnostics.push({
+        label: sec.label,
+        pred_mean, actual_mean, pred_max, actual_max, rmse,
+        delta_mean: actual_mean - pred_mean,
+        delta_max: actual_max - pred_max
+      });
+    }
+  }
+
+  // Per-corner report: physical grip limit, the model's predicted apex speed,
+  // this run's actual apex speed (reference only, not fed back into the
+  // model), and where/how hard braking needed to start to get there — all
+  // read off the envelopes above, none of it fitted.
+  const maxBrakeDecel = (params.brakeConfidence / 100) * Math.max(0, params.mu) * g;
+  const zoneState = cornerZones.map((z, i) => {
+    const vLimit = Math.sqrt(Math.max(0, params.mu) * g * z.radius) * 3.6;
+    const prevEnd = i > 0 ? cornerZones[i-1].d1 : 0;
+
+    // The model's own apex within this named span — its minimum speed
+    // anywhere in [d0,d1] — rather than sampling at the recorded apex's
+    // distance. The local (continuous) grip limit's tightest point doesn't
+    // necessarily sit at the exact same distance as this run's actual apex,
+    // so sampling at a fixed distance could show a "predicted apex" above
+    // the corner's own grip limit even though the model is genuinely capped
+    // at that lower speed a little further along.
+    let predictedApex = Infinity, apexAtDist = z.dist;
+    for (let d = Math.round(z.d0); d <= Math.round(z.d1); d++) {
+      if (mergedV[d] < predictedApex) { predictedApex = mergedV[d]; apexAtDist = d; }
+    }
+
+    let brakePointDist = null;
+    for (let d = Math.round(z.d0); d > prevEnd; d--) {
+      if (bwdV[d] < fwdV[d] - 0.05) brakePointDist = d; else break;
+    }
+    return {
+      name: z.name,
+      dist: apexAtDist,
+      vLimit,
+      predictedApex,
+      recordedApexSpeed: z.recordedApexSpeed,
+      brakePointDist,
+      brakeDistance: brakePointDist !== null ? apexAtDist - brakePointDist : 0,
+      maxBrakeDecel
+    };
+  });
+
+  return {data: predicted, time: totalTime, diagnostics, zoneState, energyAvailable, energyRR, energyDrag, energyCornering, energyBraking};
+}
+
+// Speed at the actual finish line (FINISH_DISTANCE), interpolated from the
+// recorded trace — not just the fastest point somewhere near the end, which
+// could pick up a local peak before or after the real line.
+function getFinishSpeed() {
+  let finishSpeeds = [];
+  for (let run of runsData) {
+    for (let i = 0; i < run.length - 1; i++) {
+      if (FINISH_DISTANCE >= run[i].d && FINISH_DISTANCE <= run[i+1].d) {
+        const t = (FINISH_DISTANCE - run[i].d) / (run[i+1].d - run[i].d || 1);
+        finishSpeeds.push(run[i].v + t * (run[i+1].v - run[i].v));
+        break;
+      }
+    }
+  }
+  return finishSpeeds.length > 0 ? finishSpeeds.reduce((a, b) => a + b) / finishSpeeds.length : 0;
+}
+
+// --- Route map: real basemap (needs internet — everything else on this page
+// works offline), speed heatmap, corner highlights, braking zones ---
+let routeMap = null, mapHeatLayer = null, mapCornerLayer = null, mapBrakeLayer = null;
+
+// Diverging blue→white→red scale, standard for a "slow vs fast" heatmap.
+function speedToColor(v, vMin, vMax) {
+  const stops = [
+    [0.00, [33, 102, 172]],   // slow
+    [0.25, [103, 169, 207]],
+    [0.50, [247, 247, 247]],
+    [0.75, [253, 174, 97]],
+    [1.00, [215, 48, 39]]     // fast
+  ];
+  let t = vMax > vMin ? (v - vMin) / (vMax - vMin) : 0.5;
+  t = Math.max(0, Math.min(1, t));
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i][0] && t <= stops[i+1][0]) { lo = stops[i]; hi = stops[i+1]; break; }
+  }
+  const span = hi[0] - lo[0];
+  const localT = span > 0 ? (t - lo[0]) / span : 0;
+  const c = lo[1].map((v0, i) => Math.round(v0 + (hi[1][i] - v0) * localT));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// predicted is the {x,y} array already returned by predictPaceWithDiagnostics
+// (10m resolution) — plenty fine relative to the ~15-30m GPS point spacing,
+// so no need to expose the finer 1m mergedV grid just for this.
+function predictedSpeedAt(predicted, d) {
+  if (d <= predicted[0].x) return predicted[0].y;
+  if (d >= predicted[predicted.length-1].x) return predicted[predicted.length-1].y;
+  for (let i = 0; i < predicted.length - 1; i++) {
+    if (d >= predicted[i].x && d <= predicted[i+1].x) {
+      const t = (d - predicted[i].x) / (predicted[i+1].x - predicted[i].x || 1);
+      return predicted[i].y + t * (predicted[i+1].y - predicted[i].y);
+    }
+  }
+  return predicted[predicted.length-1].y;
+}
+
+function initRouteMap() {
+  if (typeof L === 'undefined') return; // no internet / tiles library didn't load — rest of the app still works
+  const bounds = L.latLngBounds(routePoints.map(p => [p.lat, p.lon]));
+  routeMap = L.map('routeMap', { scrollWheelZoom: false });
+  routeMap.fitBounds(bounds.pad(0.12));
+
+  const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+  }).addTo(routeMap);
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri', maxZoom: 19
+  });
+
+  mapHeatLayer = L.layerGroup().addTo(routeMap);
+  mapCornerLayer = L.layerGroup().addTo(routeMap);
+  mapBrakeLayer = L.layerGroup().addTo(routeMap);
+
+  L.control.layers({ 'Street': streets, 'Satellite': satellite }, null, { collapsed: false }).addTo(routeMap);
+
+  // A hand-rolled overlay toggle instead of L.control.layers' built-in
+  // overlay checkboxes: those keep themselves in sync via hasLayer() reacting
+  // to 'add'/'remove' events on each layer, which in testing raced with the
+  // .addTo() calls above and could leave a checkbox unchecked while its layer
+  // was still actually visible. Managing checked-state and map add/remove
+  // directly here means the box and the map can't disagree.
+  const overlayControl = L.control({ position: 'topright' });
+  overlayControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control map-overlay-toggle');
+    L.DomEvent.disableClickPropagation(div);
+    [
+      { label: 'Predicted pace', layer: mapHeatLayer },
+      { label: 'Corners', layer: mapCornerLayer },
+      { label: 'Braking zones', layer: mapBrakeLayer }
+    ].forEach(item => {
+      const row = L.DomUtil.create('label', 'map-overlay-toggle-row', div);
+      const cb = L.DomUtil.create('input', '', row);
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.setAttribute('checked', 'checked');
+      cb.addEventListener('change', () => {
+        if (cb.checked) routeMap.addLayer(item.layer);
+        else routeMap.removeLayer(item.layer);
+      });
+      row.appendChild(document.createTextNode(item.label));
+    });
+    return div;
+  };
+  overlayControl.addTo(routeMap);
+
+  setTimeout(() => routeMap.invalidateSize(), 200); // container may not have had final layout size at init
+}
+
+function refreshRouteMap(predicted, zoneState) {
+  if (!routeMap) return;
+  mapHeatLayer.clearLayers();
+  mapCornerLayer.clearLayers();
+  mapBrakeLayer.clearLayers();
+
+  // Speed heatmap: resample the known GPS line at fixed intervals (finer
+  // than the raw ~15-30m point spacing, for a smoother gradient) and colour
+  // each short segment by the live predicted speed there.
+  const routeEnd = routePoints[routePoints.length - 1].d;
+  const step = 8;
+  const samples = [];
+  for (let d = 0; d <= routeEnd; d += step) samples.push(d);
+  if (samples[samples.length-1] < routeEnd) samples.push(routeEnd);
+  const speeds = samples.map(d => predictedSpeedAt(predicted, d));
+  const vMin = Math.min(...speeds), vMax = Math.max(...speeds);
+
+  for (let i = 0; i < samples.length - 1; i++) {
+    const p1 = interpolateRoutePoint(routePoints, samples[i]);
+    const p2 = interpolateRoutePoint(routePoints, samples[i+1]);
+    const v = (speeds[i] + speeds[i+1]) / 2;
+    L.polyline([[p1.lat, p1.lon], [p2.lat, p2.lon]], {
+      color: speedToColor(v, vMin, vMax), weight: 5, opacity: 0.9
+    }).bindTooltip(`${v.toFixed(0)} km/h @ ${Math.round(samples[i])}m`, { sticky: true }).addTo(mapHeatLayer);
+  }
+
+  // Named corners: a translucent thick band along the corner's own span,
+  // plus an apex marker with the same read-only stats shown in the corner
+  // panel (grip limit / predicted apex / actual apex reference).
+  cornerZones.forEach((z, i) => {
+    const color = CORNER_COLORS[i % CORNER_COLORS.length];
+    const cornerPts = routePoints.filter(p => p.d >= z.d0 && p.d <= z.d1).map(p => [p.lat, p.lon]);
+    if (cornerPts.length >= 2) {
+      L.polyline(cornerPts, { color, weight: 9, opacity: 0.3 }).addTo(mapCornerLayer);
+    }
+    const apex = interpolateRoutePoint(routePoints, z.dist);
+    const zs = zoneState[i];
+    const actualStr = z.recordedApexSpeed != null ? `${z.recordedApexSpeed.toFixed(1)} km/h` : 'n/a';
+    L.circleMarker([apex.lat, apex.lon], { radius: 6, color, fillColor: color, fillOpacity: 0.9, weight: 2 })
+      .bindPopup(`<strong>${z.name}</strong> — ${z.direction === 'left' ? 'left-hander' : 'right-hander'}, r&asymp;${z.radius.toFixed(0)}m<br>grip limit: ${zs.vLimit.toFixed(1)} km/h<br>predicted apex: ${zs.predictedApex.toFixed(1)} km/h<br>actual: ${actualStr}`)
+      .addTo(mapCornerLayer);
+  });
+
+  // Braking zones: wherever the backward/max-brake envelope is currently
+  // binding (see brakePointDist in predictPaceWithDiagnostics) — corners
+  // with none shown mean the model carries them on grip/gravity/drag alone.
+  zoneState.forEach(zs => {
+    if (zs.brakePointDist === null) return;
+    const brakePts = [];
+    for (let d = zs.brakePointDist; d <= zs.dist; d += 5) brakePts.push(d);
+    if (brakePts[brakePts.length-1] < zs.dist) brakePts.push(zs.dist);
+    const latlngs = brakePts.map(d => { const p = interpolateRoutePoint(routePoints, d); return [p.lat, p.lon]; });
+    L.polyline(latlngs, { color: '#c0392b', weight: 4, opacity: 0.85, dashArray: '2,7' })
+      .bindTooltip(`Braking ${zs.brakeDistance.toFixed(0)}m out, up to ${zs.maxBrakeDecel.toFixed(2)} m/s&sup2;`, { sticky: true })
+      .addTo(mapBrakeLayer);
+    const startPt = interpolateRoutePoint(routePoints, zs.brakePointDist);
+    L.circleMarker([startPt.lat, startPt.lon], { radius: 4, color: '#c0392b', fillColor: '#c0392b', fillOpacity: 1, weight: 1 })
+      .addTo(mapBrakeLayer);
+  });
+
+  const brakingZoneCount = zoneState.filter(zs => zs.brakePointDist !== null).length;
+  refreshMapLegend(vMin, vMax, brakingZoneCount);
+}
+
+function refreshMapLegend(vMin, vMax, brakingZoneCount) {
+  const el = document.getElementById('mapLegend');
+  if (!el) return;
+  const cornerSwatches = cornerZones.map((z, i) =>
+    `<span><span class="legend-swatch" style="background:${CORNER_COLORS[i % CORNER_COLORS.length]}"></span>${z.name}</span>`
+  ).join('');
+  const brakingNote = brakingZoneCount === 0
+    ? ' <span class="legend-empty-note">(none at these parameters — every corner is currently carried on grip/gravity/drag alone)</span>'
+    : '';
+  el.innerHTML = `
+    <span class="legend-scale">${vMin.toFixed(0)} km/h<span class="legend-gradient"></span>${vMax.toFixed(0)} km/h</span>
+    ${cornerSwatches}
+    <span><span class="legend-line" style="background:#c0392b;"></span>Braking zone${brakingNote}</span>
+  `;
+}
+
+function updateChart() {
+  // Cheap to redo every call — keeps corner radius/apex-speed stats in sync
+  // with whichever runs are currently toggled visible in the legend.
+  cornerFitResults = refreshCornerGeometry();
+  const params = getParams();
+  const result = predictPaceWithDiagnostics(params);
+  const predicted = result.data;
+  const runTime = result.time;
+  const diagnostics = result.diagnostics;
+  const zoneState = result.zoneState;
+  const finishSpeed = getFinishSpeed();
+  
+  const datasets = [];
+  
+  for (let i = 0; i < runsData.length; i++) {
+    datasets.push({
+      label: `Run @ ${RUN_LABELS[i] || i + 1}`,
+      data: runsData[i].map(p => ({x: p.d, y: p.v})),
+      hidden: !runVisible[i],
+      borderColor: runColors[i % runColors.length],
+      backgroundColor: 'transparent',
+      borderWidth: 0.9,
+      pointRadius: 0,
+      showLine: true,
+      tension: 0
+    });
+  }
+  
+  datasets.push({
+    label: 'Predicted Pace',
+    data: predicted,
+    borderColor: '#9B59B6',
+    backgroundColor: 'transparent',
+    borderWidth: 3,
+    pointRadius: 0,
+    showLine: true,
+    tension: 0
+  });
+  
+  datasets.push({
+    label: 'Finish Line',
+    data: [{x: FINISH_DISTANCE, y: 0}, {x: FINISH_DISTANCE, y: 90}],
+    borderColor: '#34495E',
+    borderWidth: 2.5,
+    borderDash: [10, 5],
+    pointRadius: 0,
+    showLine: true,
+    tension: 0
+  });
+  
+  zoneState.forEach((z, i) => {
+    datasets.push({
+      label: `${z.name} limit`,
+      data: [{x: z.dist - 40, y: z.vLimit}, {x: z.dist + 40, y: z.vLimit}],
+      borderColor: CORNER_COLORS[i % CORNER_COLORS.length],
+      borderWidth: 2,
+      borderDash: [5, 5],
+      pointRadius: 0,
+      showLine: true,
+      tension: 0
+    });
+  });
+  
+  if (paceChartInstance) {
+    paceChartInstance.data.datasets = datasets;
+    paceChartInstance.update('none');
+  } else {
+    const ctx = document.getElementById('paceChart').getContext('2d');
+    paceChartInstance = new Chart(ctx, {
+      type: 'scatter',
+      data: {datasets},
+      plugins: [cornerBandsPlugin],
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        elements: {point: {radius: 0}},
+        plugins: {
+          legend: {
+            display: true, position: 'top', maxHeight: 35,
+            labels: {font: {size: 8}, padding: 3, usePointStyle: true, pointStyle: 'line'},
+            // Run datasets (index < runsData.length) drive runVisible and go
+            // through updateChart() so Max Speed / diagnostics / corners
+            // re-derive from only the currently-visible runs — not just a
+            // visual toggle. Everything else (Predicted Pace, Finish Line,
+            // corner-limit lines) gets Chart.js's normal show/hide-only
+            // behaviour, replicated here since a custom onClick replaces it.
+            onClick: (evt, legendItem, legend) => {
+              const index = legendItem.datasetIndex;
+              if (index < runsData.length) {
+                runVisible[index] = !runVisible[index];
+                updateChart();
+              } else {
+                const chart = legend.chart;
+                const meta = chart.getDatasetMeta(index);
+                meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : !meta.hidden;
+                chart.update();
+              }
+            }
+          },
+          tooltip: {backgroundColor: 'rgba(0,0,0,0.8)', padding: 4}
+        },
+        scales: {
+          x: {type: 'linear', min: 0, max: 1150, title: {display: true, text: 'Distance (m)', font: {size: 10}}},
+          y: {min: 0, max: 90, title: {display: true, text: 'Speed (km/h)', font: {size: 10}}}
+        }
+      }
+    });
+  }
+  
+  const allSpeeds = visibleRunsFlat().map(p => p.v);
+  const maxSpeed = allSpeeds.length ? Math.max(...allSpeeds) : 0;
+  const maxSpeedPred = Math.max(...predicted.map(p => p.y));
+  const peakV_ms = maxSpeed / 3.6;
+  
+  document.getElementById('maxSpeed').textContent = maxSpeed.toFixed(1);
+  document.getElementById('maxSpeedPred').textContent = maxSpeedPred.toFixed(1);
+  document.getElementById('runTime').textContent = runTime.toFixed(1);
+  document.getElementById('dragForce').textContent = (0.5 * params.rho * params.cda * peakV_ms * peakV_ms).toFixed(2);
+  document.getElementById('rrForce').textContent = (params.crr * params.mass * g).toFixed(2);
+  document.getElementById('finishSpeed').textContent = finishSpeed.toFixed(1);
+  document.getElementById('energyAvailable').textContent = (result.energyAvailable / 1000).toFixed(1);
+  document.getElementById('energyRR').textContent = (result.energyRR / 1000).toFixed(1);
+  document.getElementById('energyDrag').textContent = (result.energyDrag / 1000).toFixed(1);
+  document.getElementById('energyCornering').textContent = (result.energyCornering / 1000).toFixed(1);
+  document.getElementById('energyBraking').textContent = (result.energyBraking / 1000).toFixed(1);
+  
+  // Read-only diagnostics: physical corner limit and predicted apex speed come
+  // entirely from vehicle+track params (see predictPaceWithDiagnostics);
+  // recorded apex speed is shown purely as a validation reference and feeds
+  // nothing back into the model.
+  document.getElementById('cornerAnalysis').innerHTML = zoneState.map((z, i) => {
+    const zone = cornerZones[i];
+    const color = CORNER_COLORS[i % CORNER_COLORS.length];
+    const radiusStr = zone.radius
+      ? (zone.radiusRunCount > 1
+          ? `r≈${zone.radius.toFixed(0)}m (${zone.radiusSpread[0].toFixed(0)}-${zone.radiusSpread[1].toFixed(0)}m across ${zone.radiusRunCount} runs)`
+          : `r≈${zone.radius.toFixed(0)}m`)
+      : 'r n/a';
+    const dirStr = zone.direction === 'left' ? 'left-hander' : 'right-hander';
+    const refStr = z.recordedApexSpeed !== null
+      ? `actual: ${z.recordedApexSpeed.toFixed(1)} km/h${zone.recordedApexSpeedRunCount > 1 ? ` (median of ${zone.recordedApexSpeedRunCount} runs)` : ''}`
+      : `actual: no measured apex (car wasn't near the limit here)`;
+    const brakeStr = z.brakePointDist !== null
+      ? `braking from ${z.brakeDistance.toFixed(0)}m out, up to ${z.maxBrakeDecel.toFixed(2)} m/s² (${(z.maxBrakeDecel/g).toFixed(2)}g)`
+      : `no straight-line braking needed — carried in on grip/gravity/drag alone`;
+    return `
+    <div class="corner-box" style="border-left-color: ${color};">
+      <div class="corner-title">${zone.name}</div>
+      <div class="corner-meta">${dirStr}, ${radiusStr} (${zone.d0}–${zone.d1}m)</div>
+      <div class="corner-stats">
+        <div>
+          <div class="corner-stat-label">Grip limit</div>
+          <div class="corner-stat-value">${z.vLimit.toFixed(1)}<span class="unit">km/h</span></div>
+        </div>
+        <div>
+          <div class="corner-stat-label">Predicted apex</div>
+          <div class="corner-stat-value">${z.predictedApex.toFixed(1)}<span class="unit">km/h</span></div>
+        </div>
+      </div>
+      <small class="corner-footnote">${refStr} · ${brakeStr}</small>
+    </div>`;
+  }).join('');
+  
+  let diagHtml = '';
+  for (let d of diagnostics) {
+    const gapClass = Math.abs(d.delta_mean) > 5 ? 'diag-gap' : '';
+    const sign_mean = d.delta_mean >= 0 ? '+' : '';
+    const sign_max = d.delta_max >= 0 ? '+' : '';
+    diagHtml += `<div class="diag-section">
+      <strong>${d.label}</strong><br>
+      Pred: ${d.pred_mean.toFixed(1)} km/h mean, ${d.pred_max.toFixed(1)} km/h max<br>
+      Actual: ${d.actual_mean.toFixed(1)} km/h mean, ${d.actual_max.toFixed(1)} km/h max<br>
+      <span class="${gapClass}">Δ mean: ${sign_mean}${d.delta_mean.toFixed(1)} km/h, Δ max: ${sign_max}${d.delta_max.toFixed(1)} km/h</span> | RMSE: ${d.rmse.toFixed(2)} km/h
+    </div>`;
+  }
+  document.getElementById('diagnosticsOutput').innerHTML = diagHtml;
+
+  refreshRouteMap(predicted, zoneState);
+}
+
+function degToCompass(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+// Draggable compass dial: click or drag anywhere on it to set a wind
+// direction. Shared logic for both the manual dial and the actual/recorded
+// dial. windDir's stored value/semantics stay "direction wind blows FROM"
+// (meteorological convention, matches the physics calc elsewhere) — but the
+// ARROW drawn points where the wind blows TOWARD (the same convention common
+// weather apps use for a flow arrow), which reads unambiguously at a glance
+// without the viewer needing to mentally flip it. What you drag is what you
+// see: the arrow tip follows the pointer directly, and the from/toward
+// conversion happens only where the value is stored/read.
+function setupCompassDial(svgId, needleId, readoutId, compassLabelSelector, initialFromDeg, onChange) {
+  const svg = document.getElementById(svgId);
+  const needle = document.getElementById(needleId);
+  const readout = document.getElementById(readoutId);
+  const label = document.querySelector(compassLabelSelector);
+  const cx = 45, cy = 45, r = 26;
+  let dragging = false;
+
+  function setFromAngle(fromDeg) {
+    fromDeg = ((fromDeg % 360) + 360) % 360;
+    const towardDeg = (fromDeg + 180) % 360;
+    const rad = towardDeg * Math.PI / 180;
+    const x = cx + r * Math.sin(rad);
+    const y = cy - r * Math.cos(rad);
+    needle.setAttribute('x2', x);
+    needle.setAttribute('y2', y);
+    readout.textContent = Math.round(fromDeg) + '°';
+    if (label) label.textContent = '(from ' + degToCompass(fromDeg) + ')';
+    onChange(fromDeg);
+  }
+
+  // Returns the TOWARD bearing of the pointer (where the user is dragging
+  // the arrow tip to) — converted to "from" by the caller.
+  function towardAngleFromEvent(evt) {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = 90 / rect.width, scaleY = 90 / rect.height;
+    const px = (evt.clientX - rect.left) * scaleX;
+    const py = (evt.clientY - rect.top) * scaleY;
+    const dx = px - cx, dy = py - cy;
+    const deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+    return Math.round((((deg % 360) + 360) % 360) / 5) * 5; // snap to nearest 5°
+  }
+
+  const dragTo = (evt) => setFromAngle(towardAngleFromEvent(evt) + 180);
+  svg.addEventListener('pointerdown', (evt) => { dragging = true; dragTo(evt); evt.preventDefault(); });
+  window.addEventListener('pointermove', (evt) => { if (dragging) dragTo(evt); });
+  window.addEventListener('pointerup', () => { dragging = false; });
+
+  setFromAngle(initialFromDeg);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  initRouteMap();
+  if (CALIBRATED_MU) document.getElementById('mu').value = CALIBRATED_MU.toFixed(2);
+  ['mass', 'cda', 'crr', 'mu', 'brakeConfidence', 'windSpeed'].forEach(id => {
+    document.getElementById(id).addEventListener('change', updateChart);
+    document.getElementById(id).addEventListener('input', updateChart);
+  });
+
+  setupCompassDial('compassDial', 'compassNeedle', 'windDirReadout',
+    '#windManualPanel .wind-from-label', 0, (deg) => {
+      document.getElementById('windDir').value = deg;
+      if (windMode === 'manual') updateChart();
+    });
+
+  setupCompassDial('compassDialActual', 'compassNeedleActual', 'windDirReadoutActual',
+    '#windActualPanel .wind-from-label', 225, (deg) => {
+      actualWindDir = deg;
+      if (windMode === 'actual') updateChart();
+    });
+
+  document.getElementById('windSpeedActual').addEventListener('input', () => { if (windMode === 'actual') updateChart(); });
+  document.getElementById('windSpeedActual').addEventListener('change', () => { if (windMode === 'actual') updateChart(); });
+
+  document.getElementById('windModeManual').addEventListener('click', () => {
+    windMode = 'manual';
+    document.getElementById('windModeManual').classList.add('active');
+    document.getElementById('windModeActual').classList.remove('active');
+    document.getElementById('windManualPanel').style.display = '';
+    document.getElementById('windActualPanel').style.display = 'none';
+    updateChart();
+  });
+  document.getElementById('windModeActual').addEventListener('click', () => {
+    windMode = 'actual';
+    document.getElementById('windModeActual').classList.add('active');
+    document.getElementById('windModeManual').classList.remove('active');
+    document.getElementById('windActualPanel').style.display = '';
+    document.getElementById('windManualPanel').style.display = 'none';
+    updateChart();
+  });
+
+  const runUpload = document.getElementById('runUpload');
+  const gpxFileInput = document.getElementById('gpxFileInput');
+  const runTitleInput = document.getElementById('runTitleInput');
+  document.getElementById('gpxBrowseBtn').addEventListener('click', () => gpxFileInput.click());
+  gpxFileInput.addEventListener('change', (e) => { handleGpxFiles(e.target.files, runTitleInput.value.trim()); gpxFileInput.value = ''; });
+  runUpload.addEventListener('dragover', (e) => { e.preventDefault(); runUpload.classList.add('drag-over'); });
+  runUpload.addEventListener('dragleave', () => runUpload.classList.remove('drag-over'));
+  runUpload.addEventListener('drop', (e) => {
+    e.preventDefault();
+    runUpload.classList.remove('drag-over');
+    handleGpxFiles(e.dataTransfer.files, runTitleInput.value.trim());
+  });
+
+  updateChart();
+});
+</script>
+</div>
+</body>
+</html>
