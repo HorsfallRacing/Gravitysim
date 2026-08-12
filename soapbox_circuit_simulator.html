@@ -7,74 +7,219 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
+  :root {
+    --bg: #f2f4f7;
+    --surface: #ffffff;
+    --border: #e2e5ea;
+    --text: #1a1d24;
+    --text-muted: #6b7280;
+    --text-faint: #9aa1ab;
+    --accent: #2f7dd1;
+    --accent-dark: #1f5fa8;
+    --accent-soft: #eaf3fc;
+    --danger: #d0392b;
+    --success: #1f7a3d;
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-md: 0 6px 16px rgba(16,24,40,.08);
+    --gap: 24px;
+  }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
-  .container { max-width: 1200px; margin: 0 auto; }
-  h1 { margin: 0 0 20px 0; font-size: 24px; }
-  .header { background: linear-gradient(135deg, #378ADD, #185FA5); color: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-  .header p { margin: 0; font-size: 13px; opacity: 0.9; }
-  .header h2 { margin: 8px 0 0 0; font-size: 16px; font-weight: 600; }
-  .params { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-  .params h3 { margin: 0 0 15px 0; font-size: 13px; font-weight: 600; }
-  .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 28px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1240px; margin: 0 auto; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 22px;
+    margin-bottom: var(--gap);
+  }
+  .card h3, .diagnostics h3, .corners h3 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .card > p, .card-note {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #378ADD, #185FA5);
+    color: white;
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: var(--gap);
+    box-shadow: var(--shadow-md);
+  }
+  .header h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .header h2 { margin: 6px 0 0 0; font-size: 14px; font-weight: 500; opacity: .9; }
+
+  .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; margin-top: 14px; }
   .param-box { display: flex; flex-direction: column; }
-  .param-box label { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
-  .param-box input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: monospace; }
-  .param-box small { font-size: 10px; color: #999; margin-top: 3px; }
-  .wind-panel { border-top: 1px solid #eee; margin-top: 16px; padding-top: 16px; }
-  .wind-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
-  .wind-mode-toggle { display: flex; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
-  .wind-mode-btn { background: #fff; border: none; padding: 6px 12px; font-size: 12px; font-weight: 600; color: #666; cursor: pointer; }
-  .wind-mode-btn.active { background: #3498DB; color: #fff; }
-  .wind-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .param-box label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 7px; font-weight: 700; }
+  .param-box input {
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    background: #fbfbfc;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .param-box input:hover { border-color: #c9ccd3; }
+  .param-box input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--surface);
+  }
+  .param-box small { font-size: 10.5px; color: var(--text-faint); margin-top: 4px; line-height: 1.4; }
+
+  .wind-panel { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
+  .wind-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .wind-mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .wind-mode-btn { background: #fff; border: none; padding: 7px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s; }
+  .wind-mode-btn:hover:not(.active) { background: #f4f5f7; }
+  .wind-mode-btn.active { background: var(--accent); color: #fff; }
+  .wind-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .compass-mini { touch-action: none; user-select: none; cursor: grab; flex-shrink: 0; }
   .wind-readout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15px; }
-  .wind-speed-inline { width: 64px; padding: 5px 7px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; }
-  .wind-note { font-size: 10px; color: #999; margin-top: 6px; cursor: default; }
-  .corner-pct-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; flex-wrap: wrap; }
-  .chart-container { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; height: 450px; margin-bottom: 20px; }
-  .run-upload { background: white; border: 2px dashed #ccc; border-radius: 8px; padding: 14px 15px; margin-bottom: 20px; text-align: center; font-size: 12px; color: #666; transition: border-color 0.15s, background 0.15s; }
-  .run-upload.drag-over { border-color: #3498DB; background: #eef6fc; }
-  .run-upload button { background: #3498DB; color: white; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
-  .run-upload button:hover { background: #2E86C1; }
-  #uploadStatus { margin-top: 6px; font-size: 11px; min-height: 14px; }
-  #uploadStatus.error { color: #c0392b; }
-  #uploadStatus.success { color: #27632a; }
-  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .metric { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
-  .metric-label { font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
-  .metric-value { font-size: 20px; font-weight: 600; color: #333; }
-  .metric-unit { font-size: 10px; color: #999; margin-top: 4px; }
-  .diagnostics { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-  .diagnostics h3 { margin: 0 0 15px 0; font-size: 13px; font-weight: 600; }
-  .diag-section { background: #f9f9f9; border-left: 3px solid #3498DB; padding: 12px; margin-bottom: 10px; font-size: 11px; border-radius: 4px; font-family: monospace; }
-  .diag-gap { color: #e74c3c; font-weight: 600; }
-  .corners { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; }
-  .corners h3 { margin: 0 0 15px 0; font-size: 13px; font-weight: 600; }
-  .corner-box { background: #f9f9f9; border-left: 3px solid #378ADD; padding: 12px; margin-bottom: 10px; font-size: 12px; border-radius: 4px; }
-  .corner-box strong { display: block; margin-bottom: 4px; }
-  .corner-box small { display: block; color: #999; margin-top: 4px; font-size: 10px; }
-  .map-panel { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-top: 20px; }
-  .map-panel h3 { margin: 0 0 4px 0; font-size: 13px; font-weight: 600; }
-  #routeMap { height: 480px; border-radius: 6px; border: 1px solid #ddd; background: #eee; }
-  .map-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: #555; }
+  .wind-speed-inline { width: 64px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 13px; }
+  .wind-speed-inline:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .wind-note { font-size: 10.5px; color: var(--text-faint); margin-top: 8px; cursor: default; line-height: 1.4; }
+
+  .chart-container { height: 450px; }
+  .chart-container.card { padding: 18px; }
+
+  .run-upload {
+    border: 2px dashed #cfd3d9;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    transition: border-color .15s, background .15s;
+  }
+  .run-upload.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+  .run-upload button { background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .run-upload button:hover { background: var(--accent-dark); }
+  .run-upload-stack { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .run-title-input {
+    width: 220px;
+    text-align: center;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .run-title-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #uploadStatus { margin-top: 8px; font-size: 11.5px; min-height: 14px; }
+  #uploadStatus.error { color: var(--danger); }
+  #uploadStatus.success { color: var(--success); }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: var(--gap); }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 14px 16px;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .metric:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .metric-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; font-weight: 700; }
+  .metric-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .metric-unit { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; }
+
+  .diag-section {
+    background: #f8f9fb;
+    border-left: 3px solid var(--accent);
+    padding: 13px 14px;
+    margin-bottom: 10px;
+    font-size: 11.5px;
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    line-height: 1.7;
+  }
+  .diag-section:last-child { margin-bottom: 0; }
+  .diag-section strong { color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12.5px; }
+  .diag-gap { color: var(--danger); font-weight: 700; }
+
+  .corner-box { background: #f8f9fb; border-left: 3px solid var(--accent); padding: 14px 16px; margin-bottom: 10px; border-radius: var(--radius-sm); }
+  .corner-box:last-child { margin-bottom: 0; }
+  .corner-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .corner-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .corner-stats { display: flex; gap: 28px; flex-wrap: wrap; margin: 12px 0; }
+  .corner-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-faint); font-weight: 700; margin-bottom: 3px; }
+  .corner-stat-value { font-size: 18px; font-weight: 700; color: var(--text); }
+  .corner-stat-value .unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 2px; }
+  .corner-footnote { display: block; color: var(--text-faint); font-size: 10.5px; padding-top: 10px; border-top: 1px solid var(--border); line-height: 1.5; }
+
+  #routeMap { height: 480px; border-radius: var(--radius-md); border: 1px solid var(--border); background: #eee; }
+  .map-overlay-toggle {
+    background: var(--surface);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.9;
+  }
+  .map-overlay-toggle-row { display: flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
+  .map-overlay-toggle-row input { cursor: pointer; margin: 0; }
+  .map-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: var(--text-muted); }
   .map-legend .legend-scale { display: flex; align-items: center; gap: 6px; }
   .map-legend .legend-gradient { width: 120px; height: 10px; border-radius: 5px; background: linear-gradient(to right, #2166ac, #67a9cf, #f7f7f7, #fdae61, #d73027); }
   .map-legend .legend-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
   .map-legend .legend-line { display: inline-block; width: 16px; height: 3px; margin-right: 4px; vertical-align: middle; }
+  .map-legend .legend-empty-note { color: var(--text-faint); font-style: italic; }
+  .disclaimer-note { font-size: 10.5px; color: var(--text-faint); margin: 10px 0 0 0; line-height: 1.5; }
+
+  @media (max-width: 640px) {
+    body { padding: 16px 12px; }
+    .header h1 { font-size: 20px; }
+    .card { padding: 16px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .corner-stats { gap: 20px; }
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>Harewood Gravity Kart Simulator</h1>
-  
   <div class="header">
-    <p id="headerSubtitle">Leeds downhill • 1.1 km • auto-detected scrub zones</p>
+    <h1>Harewood Gravity Kart Simulator</h1>
     <h2>Physics-based pace prediction with calibrated parameters</h2>
   </div>
 
-  <div class="params">
+  <div class="run-upload card" id="runUpload">
+    <div class="run-upload-stack">
+      <input type="text" id="runTitleInput" class="run-title-input" placeholder="Run name (optional)">
+      <span>Drop GPX file(s) here to add another run, or
+        <button type="button" id="gpxBrowseBtn">browse</button>
+      </span>
+    </div>
+    <input type="file" id="gpxFileInput" accept=".gpx" multiple style="display:none;">
+    <div id="uploadStatus"></div>
+  </div>
+
+  <div class="params card">
     <h3>Vehicle & Track Parameters</h3>
     <div class="param-grid">
       <div class="param-box">
@@ -103,7 +248,7 @@
         <small>% of max available (μ×g) brake force actually used</small>
       </div>
     </div>
-    <p style="font-size: 10px; color: #999; margin-top: 10px;">† Corners are named and located from GPS heading/curvature (Harewood Speed Hillclimb, run top-to-bottom). Braking point and intensity are no longer fitted per corner — they fall out of a forward (coast) / backward (max-brake) envelope pass entirely driven by vehicle + track parameters. See "Corners" panel below.</p>
+    <p class="card-note" style="margin-top: 14px; margin-bottom: 0;">† Corners are named and located from GPS heading/curvature (Harewood Speed Hillclimb, run top-to-bottom). Braking point and intensity are no longer fitted per corner — they fall out of a forward (coast) / backward (max-brake) envelope pass entirely driven by vehicle + track parameters. See "Corners" panel below.</p>
 
     <div class="wind-panel">
       <div class="wind-header">
@@ -169,14 +314,15 @@
     </div>
   </div>
 
-  <div class="run-upload" id="runUpload">
-    <input type="file" id="gpxFileInput" accept=".gpx" multiple style="display:none;">
-    Drop GPX file(s) here to add another run, or
-    <button type="button" id="gpxBrowseBtn">browse</button>
-    <div id="uploadStatus"></div>
+  <div class="map-panel card">
+    <h3>Route Map</h3>
+    <p class="card-note">Predicted speed heatmap along the actual GPS line (updates live with the parameters above) · named corners highlighted · braking zones marked. Map tiles require an internet connection — everything else on this page works offline.</p>
+    <div id="routeMap"></div>
+    <div id="mapLegend" class="map-legend"></div>
+    <p class="disclaimer-note">⚠ Corner, apex-speed and braking-zone markers are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
   </div>
 
-  <div class="chart-container">
+  <div class="chart-container card">
     <canvas id="paceChart"></canvas>
   </div>
 
@@ -238,23 +384,17 @@
     </div>
   </div>
 
-  <div class="diagnostics">
+  <div class="diagnostics card">
     <h3>Model vs Reality by Section</h3>
-    <p style="font-size: 10px; color: #999; margin: 0 0 10px 0;">RMSE = Root Mean Square Error. Lower = better fit. Δ = Actual – Predicted (positive = model is conservative)</p>
+    <p class="card-note">RMSE = Root Mean Square Error. Lower = better fit. Δ = Actual – Predicted (positive = model is conservative)</p>
     <div id="diagnosticsOutput"></div>
   </div>
 
-  <div class="corners">
-    <h3>Corners (Harewood Speed Hillclimb, run top-to-bottom)</h3>
-    <p style="font-size: 10px; color: #999; margin: 0 0 10px 0;">Location, direction and radius come from GPS heading/curvature, not speed. Grip limit and predicted apex speed come from a forward (coast) / backward (max-brake) envelope pass — see main description above. Actual apex speed is shown purely as a validation reference.</p>
+  <div class="corners card">
+    <h3>Corners</h3>
+    <p class="card-note">Location, direction and radius come from GPS heading/curvature, not speed. Grip limit and predicted apex speed come from a forward (coast) / backward (max-brake) envelope pass — see main description above. Actual apex speed is shown purely as a validation reference.</p>
     <div id="cornerAnalysis"></div>
-  </div>
-
-  <div class="map-panel">
-    <h3>Route Map</h3>
-    <p style="font-size: 10px; color: #999; margin: 0 0 10px 0;">Predicted speed heatmap along the actual GPS line (updates live with the parameters above) · named corners highlighted · braking zones marked. Map tiles require an internet connection — everything else on this page works offline.</p>
-    <div id="routeMap"></div>
-    <div id="mapLegend" class="map-legend"></div>
+    <p class="disclaimer-note">⚠ Grip limits, apex speeds and braking figures below are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
   </div>
 
 </div>
@@ -372,7 +512,7 @@ function setUploadStatus(msg, isError) {
   el.className = isError ? 'error' : (msg ? 'success' : '');
 }
 
-function addGpxRun(xmlText, filename) {
+function addGpxRun(xmlText, filename, customLabel) {
   let rawPts;
   try {
     rawPts = parseGpxText(xmlText);
@@ -399,19 +539,20 @@ function addGpxRun(xmlText, filename) {
   runsData.push(run.map(p => ({ d: p.d, v: p.v })));
   allRoutePoints.push(run.map(p => ({ d: p.d, lat: p.lat, lon: p.lon })));
   runVisible.push(true);
-  const label = deriveRunLabel(rawPts, filename);
+  const label = customLabel || deriveRunLabel(rawPts, filename);
   RUN_LABELS.push(label);
 
   updateChart();
-  updateHeaderSubtitle();
   setUploadStatus(`Added "${label}" — ${run.length} points, ${totalDist.toFixed(0)}m. Contributing to track geometry (session only, not saved to the file).`, false);
 }
 
-function handleGpxFiles(fileList) {
-  Array.from(fileList).forEach(file => {
+function handleGpxFiles(fileList, customTitle) {
+  const files = Array.from(fileList);
+  files.forEach((file, i) => {
     if (!/\.gpx$/i.test(file.name)) { setUploadStatus(`${file.name}: not a .gpx file`, true); return; }
+    const label = customTitle ? (files.length > 1 ? `${customTitle} ${i + 1}` : customTitle) : null;
     const reader = new FileReader();
-    reader.onload = evt => addGpxRun(evt.target.result, file.name);
+    reader.onload = evt => addGpxRun(evt.target.result, file.name, label);
     reader.onerror = () => setUploadStatus(`${file.name}: couldn't read file`, true);
     reader.readAsText(file);
   });
@@ -1229,11 +1370,43 @@ function initRouteMap() {
   const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri', maxZoom: 19
   });
-  L.control.layers({ 'Street': streets, 'Satellite': satellite }).addTo(routeMap);
 
   mapHeatLayer = L.layerGroup().addTo(routeMap);
   mapCornerLayer = L.layerGroup().addTo(routeMap);
   mapBrakeLayer = L.layerGroup().addTo(routeMap);
+
+  L.control.layers({ 'Street': streets, 'Satellite': satellite }, null, { collapsed: false }).addTo(routeMap);
+
+  // A hand-rolled overlay toggle instead of L.control.layers' built-in
+  // overlay checkboxes: those keep themselves in sync via hasLayer() reacting
+  // to 'add'/'remove' events on each layer, which in testing raced with the
+  // .addTo() calls above and could leave a checkbox unchecked while its layer
+  // was still actually visible. Managing checked-state and map add/remove
+  // directly here means the box and the map can't disagree.
+  const overlayControl = L.control({ position: 'topright' });
+  overlayControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control map-overlay-toggle');
+    L.DomEvent.disableClickPropagation(div);
+    [
+      { label: 'Predicted pace', layer: mapHeatLayer },
+      { label: 'Corners', layer: mapCornerLayer },
+      { label: 'Braking zones', layer: mapBrakeLayer }
+    ].forEach(item => {
+      const row = L.DomUtil.create('label', 'map-overlay-toggle-row', div);
+      const cb = L.DomUtil.create('input', '', row);
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.setAttribute('checked', 'checked');
+      cb.addEventListener('change', () => {
+        if (cb.checked) routeMap.addLayer(item.layer);
+        else routeMap.removeLayer(item.layer);
+      });
+      row.appendChild(document.createTextNode(item.label));
+    });
+    return div;
+  };
+  overlayControl.addTo(routeMap);
+
   setTimeout(() => routeMap.invalidateSize(), 200); // container may not have had final layout size at init
 }
 
@@ -1297,19 +1470,23 @@ function refreshRouteMap(predicted, zoneState) {
       .addTo(mapBrakeLayer);
   });
 
-  refreshMapLegend(vMin, vMax);
+  const brakingZoneCount = zoneState.filter(zs => zs.brakePointDist !== null).length;
+  refreshMapLegend(vMin, vMax, brakingZoneCount);
 }
 
-function refreshMapLegend(vMin, vMax) {
+function refreshMapLegend(vMin, vMax, brakingZoneCount) {
   const el = document.getElementById('mapLegend');
   if (!el) return;
   const cornerSwatches = cornerZones.map((z, i) =>
     `<span><span class="legend-swatch" style="background:${CORNER_COLORS[i % CORNER_COLORS.length]}"></span>${z.name}</span>`
   ).join('');
+  const brakingNote = brakingZoneCount === 0
+    ? ' <span class="legend-empty-note">(none at these parameters — every corner is currently carried on grip/gravity/drag alone)</span>'
+    : '';
   el.innerHTML = `
     <span class="legend-scale">${vMin.toFixed(0)} km/h<span class="legend-gradient"></span>${vMax.toFixed(0)} km/h</span>
     ${cornerSwatches}
-    <span><span class="legend-line" style="background:#c0392b;"></span>Braking zone</span>
+    <span><span class="legend-line" style="background:#c0392b;"></span>Braking zone${brakingNote}</span>
   `;
 }
 
@@ -1461,11 +1638,19 @@ function updateChart() {
       : `no straight-line braking needed — carried in on grip/gravity/drag alone`;
     return `
     <div class="corner-box" style="border-left-color: ${color};">
-      <strong>${zone.name}</strong> — ${dirStr}, ${radiusStr} (${zone.d0}–${zone.d1}m)
-      <div class="corner-pct-row">
-        <span>grip limit: <strong>${z.vLimit.toFixed(1)}</strong> km/h &nbsp;|&nbsp; predicted apex: <strong>${z.predictedApex.toFixed(1)}</strong> km/h</span>
+      <div class="corner-title">${zone.name}</div>
+      <div class="corner-meta">${dirStr}, ${radiusStr} (${zone.d0}–${zone.d1}m)</div>
+      <div class="corner-stats">
+        <div>
+          <div class="corner-stat-label">Grip limit</div>
+          <div class="corner-stat-value">${z.vLimit.toFixed(1)}<span class="unit">km/h</span></div>
+        </div>
+        <div>
+          <div class="corner-stat-label">Predicted apex</div>
+          <div class="corner-stat-value">${z.predictedApex.toFixed(1)}<span class="unit">km/h</span></div>
+        </div>
       </div>
-      <small>${refStr} · ${brakeStr}</small>
+      <small class="corner-footnote">${refStr} · ${brakeStr}</small>
     </div>`;
   }).join('');
   
@@ -1541,13 +1726,7 @@ function setupCompassDial(svgId, needleId, readoutId, compassLabelSelector, init
   setFromAngle(initialFromDeg);
 }
 
-function updateHeaderSubtitle() {
-  document.getElementById('headerSubtitle').textContent =
-    `Harewood Speed Hillclimb, top-to-bottom • 1.1 km • Quarry → Farmhouse/Croisdale → Orchard → Willow → Country → Chippy's • ${runsData.length} run(s)`;
-}
-
 document.addEventListener('DOMContentLoaded', function() {
-  updateHeaderSubtitle();
   initRouteMap();
   if (CALIBRATED_MU) document.getElementById('mu').value = CALIBRATED_MU.toFixed(2);
   ['mass', 'cda', 'crr', 'mu', 'brakeConfidence', 'windSpeed'].forEach(id => {
@@ -1589,14 +1768,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const runUpload = document.getElementById('runUpload');
   const gpxFileInput = document.getElementById('gpxFileInput');
+  const runTitleInput = document.getElementById('runTitleInput');
   document.getElementById('gpxBrowseBtn').addEventListener('click', () => gpxFileInput.click());
-  gpxFileInput.addEventListener('change', (e) => { handleGpxFiles(e.target.files); gpxFileInput.value = ''; });
+  gpxFileInput.addEventListener('change', (e) => { handleGpxFiles(e.target.files, runTitleInput.value.trim()); gpxFileInput.value = ''; });
   runUpload.addEventListener('dragover', (e) => { e.preventDefault(); runUpload.classList.add('drag-over'); });
   runUpload.addEventListener('dragleave', () => runUpload.classList.remove('drag-over'));
   runUpload.addEventListener('drop', (e) => {
     e.preventDefault();
     runUpload.classList.remove('drag-over');
-    handleGpxFiles(e.dataTransfer.files);
+    handleGpxFiles(e.dataTransfer.files, runTitleInput.value.trim());
   });
 
   updateChart();
