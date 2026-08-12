@@ -1,4 +1,4 @@
-# Soapbox Circuit Simulator — Project Summary (updated)
+# Harewood Gravity Kart Simulator — Project Summary (updated)
 
 ## Overview
 Physics-based pace prediction simulator for a gravity-powered soapbox running
@@ -101,7 +101,7 @@ matters because speed-dip detection conflates real corners with braking
 zones, gradient changes, etc. Cross-checked against Harewood's published
 course guide, reversed for direction (you run top-to-bottom):
 
-`Quarry → Farmhouse → Orchard → Willow → Country → Chippy's`
+`Quarry → Farmhouse/Croisdale → Orchard → Willow → Country → Chippy's`
 
 Per corner, computed from GPS geometry: **radius**, **direction** (left/right
 — this was buggy earlier, a sign-convention error inverted every corner's
@@ -127,10 +127,10 @@ v_target = brake% × v_limit / 100            — per-corner, user-editable
   recorded apex speed at μ=0.8, shown for reference in the panel.
 
 **Known issue, unresolved:** the back-calculated defaults don't cleanly split
-into "corners I actually braked at" (Farmhouse, Orchard, and right at the
+into "corners I actually braked at" (Farmhouse/Croisdale, Orchard, and right at the
 end/Chippy's — per rider's own account) vs "corners taken without braking"
 (Willow, Country). A proper sweep comparing actual deceleration against pure
-physics (no braking) *does* show this split clearly — Farmhouse/Orchard/end
+physics (no braking) *does* show this split clearly — Farmhouse/Croisdale/Orchard/end
 show 2–2.7 m/s² of "extra" deceleration beyond gravity+drag+Crr, vs 0.4–1.8
 m/s² at Willow/Country, and the pattern is far more sustained at the braked
 corners. But the brake%-of-limit framing conflates "how hard you braked" with
@@ -154,10 +154,10 @@ It stops being fine the moment a **different vehicle** (different wheelbase)
 is simulated on these corners: wheelbase (+ track width + steering lock) sets
 a hard minimum turning radius, so a vehicle with a meaningfully different
 wheelbase may not be able to hold the same line through the tighter corners
-(Orchard/Chippy's, ~37m radius, are much tighter than Willow/Farmhouse at
+(Orchard/Chippy's, ~37m radius, are much tighter than Willow/Farmhouse/Croisdale at
 ~50–55m) — it might need a wider/faster or tighter/slower line than what was
 recorded. Wheelbase also affects weight transfer under trail-braking
-(Farmhouse/Orchard, where you brake and corner at once — combined slip, not
+(Farmhouse/Croisdale/Orchard, where you brake and corner at once — combined slip, not
 modelled) and yaw responsiveness (transient turn-in speed, not steady-state).
 
 **Not yet built.** If/when simulating a second vehicle becomes the actual
@@ -180,7 +180,7 @@ universally.
 4. **Elevation resolution is coarse** (~72 points / 1.1km, ~15m spacing).
 5. **No real grip/weight-transfer model** — braking deceleration is imposed
    to hit a target, not derived from an actual lateral-longitudinal friction
-   circle. Two corners (Farmhouse, Willow, per rider's account) have
+   circle. Two corners (Farmhouse/Croisdale, Willow, per rider's account) have
    documented 4-wheel sliding. Corner limit is also a point-mass
    approximation with no wheelbase/track width — fine for this run (the
    radius used is the path actually driven), not fine for a different vehicle
@@ -226,7 +226,7 @@ masking a real physics bug. Both are now fixed.
 The old model calibrated brake deceleration via isolated SUVAT kinematics
 (`v_target² = v_entry² − 2·a·window`), as if the car coasted in a vacuum
 during the scrub window — not accounting for gravity/drag/rr still acting
-throughout it. On Farmhouse's approach (~18% gradient, the steepest on the
+throughout it. On Farmhouse/Croisdale's approach (~18% gradient, the steepest on the
 course), gravity alone contributed ~1.74 m/s² while the calibrated brake
 decel was only ~0.87 m/s² — the "brake" was overpowered by the hill and the
 car accelerated through what was meant to be a braking zone, overshooting the
@@ -254,9 +254,9 @@ recorded actual apex (reference only, feeds nothing back into the model).
 
 ### Corner grip limit: local curvature, not one radius per named corner
 Also fixed: the grip-limit clamp used to apply ONE constant radius across a
-named corner's *entire* nominal distance span (up to 151m for Farmhouse),
+named corner's *entire* nominal distance span (up to 151m for Farmhouse/Croisdale),
 flat-lining predicted speed through entry/exit sections that aren't at the
-true tightest point. The actual GPS trace enters Farmhouse's zone at 66km/h,
+true tightest point. The actual GPS trace enters Farmhouse/Croisdale's zone at 66km/h,
 dips to 52 at the real apex, climbs back to 57+ — but the old clamp held the
 whole 151m at one number. Fixed by computing a **local, point-by-point
 curvature radius** from each route point's neighbours (`pointRadius` /
@@ -271,7 +271,7 @@ to sparse GPS sampling than the old whole-zone average was. Willow has only
 6 points over its 134m span (~27m spacing, the sparsest of any corner) and
 now under-predicts its actual apex (46.8 vs 55.3 km/h actual) — likely one
 noisy point pulling the local minimum-radius estimate too low. All other
-corners improved substantially (Farmhouse 51.5 vs 51.9 actual, Orchard 38.2
+corners improved substantially (Farmhouse/Croisdale 51.5 vs 51.9 actual, Orchard 38.2
 vs 37.0, Country 42.2 vs 41.7). **A second GPX run would help most here** —
 either averaging radius estimates across runs, or at minimum cross-checking
 whether Willow's geometry is genuinely as tight as this one recording
@@ -285,7 +285,7 @@ averaging blindly:
 - **Orchard/Chippy's (0.29/0.24, lowest)**: rider's account says these were
   *deliberately braked*, so `v_actual²/(g·r)` measures driver caution, not
   grip — using it to imply μ is circular.
-- **Farmhouse (0.42)**: the corner itself carries a 10.3% average gradient
+- **Farmhouse/Croisdale (0.42)**: the corner itself carries a 10.3% average gradient
   (steepest of any named corner) — combined lateral+longitudinal grip demand
   (friction circle) isn't modelled, so this number is contaminated by a real,
   separate, still-unmodelled effect (see "Wheelbase" section above, which
@@ -440,3 +440,124 @@ already handles it appropriately and the spread is reported, not hidden.
 Country's implied-μ spread (0.21-0.44) is real too, likely reflecting that
 "not deliberately braked" doesn't mean "identically grip-limited every run" —
 worth watching if more runs are added later.
+
+---
+
+## Session update: legend/run-visibility, energy breakdown, wind UI, GPX upload
+
+### Chart legend now controls what counts, not just what's drawn
+Legend swatches switched to line-style (`pointStyle: 'line'`) instead of
+boxes. More substantively: clicking a run in the legend to hide it now also
+excludes that run's data from Max Speed (Actual), the "Model vs Reality"
+diagnostics, and the corner panel's "actual" apex-speed reference —
+previously it was purely a visual toggle, so a hidden line's data was still
+silently mixed into every readout below it.
+
+**Correction after initial implementation:** track geometry (corner radius,
+and therefore grip limit / predicted apex / run time) was initially wired to
+also respect the toggle — wrong, per user feedback: track shape is a
+physical property of the road, it shouldn't move depending on which lines
+happen to be currently displayed. Fixed by splitting
+`fitCornerGeometryAcrossRuns()`'s per-run loop into two independently
+filtered concerns: radii (always every run except the one permanently
+excluded for data-quality reasons — `EXCLUDED_GEOMETRY_RUN_IDX` — regardless
+of the legend) vs. `perRunApex` (the actual-speed comparison number, which
+does respect the toggle, since that's genuinely "what does the currently
+selected recorded data show"). Also made the radius rescale idempotent
+(`rawPointRadius` baseline, `z.baseRadius` frozen per corner) so repeated
+toggling can't compound errors — needed regardless of the above, since
+`applyCornerFitResults()` now reruns on every `updateChart()` call.
+
+### Energy breakdown: Available / RR / Drag / Cornering / Braking
+Added five metric tiles (Joules integrated 0→`FINISH_DISTANCE`, shown in
+kJ): **Available** (gravitational PE released, using the corrected gradient
+— see altimeter-settling section above — so it stays self-consistent with
+Run Time), **Rolling Resistance** (constant force × distance, exact), and
+**Drag** (summed along the merged trace using the same wind model as
+`accelAt()`). Initially shipped without Cornering/Braking — the three didn't
+sum close to Available (a ~51kJ gap), correctly diagnosed as energy the
+model actually dissipates scrubbing off speed for corners, just not captured
+by RR/drag alone. Added both: at each point, compute the "extra" retarding
+force implied by the actual merged trace's own acceleration
+(`mass × v × dv/dd`) beyond gravity/drag/rr, then split it by whether `d`
+falls inside a named corner's own `d0`-`d1` span (**Cornering** — grip
+holding the car to its curve) or not (**Braking** — shedding speed on the
+straight approaching a corner, where the backward/max-brake envelope is
+binding). Verified self-consistent: Available (84.6) − RR (6.4) − Drag
+(16.8) − Cornering (51.8) − Braking (0.2) ≈ 9.4 kJ residual, which matches
+plausible leftover kinetic energy at the finish line (the car is still
+moving there, not stopped) — the five numbers were never expected to sum to
+zero-remainder, and now visibly don't need to.
+
+### Wind control: compact layout, unambiguous direction
+Previous layout: two full 160×160px compass dials (one per mode) plus
+verbose paragraph text, taking a lot of vertical space, and per user
+feedback not clear at a glance which way the wind was actually heading.
+Rebuilt as a single compact row (70×70px compass + inline direction/speed
+readout) per mode, with the lengthy "actual weather" disclaimer collapsed
+into a one-line note (full text still available via `title` tooltip).
+**Direction fix**: `windDir`'s stored value/semantics are unchanged
+(meteorological "from" convention, matches the physics calculation
+elsewhere), but the arrow drawn now points where the wind blows *toward* —
+using an SVG marker (`orient="auto"`) so it's a real arrowhead, not just a
+line — matching the convention common weather apps use for a flow arrow,
+which reads correctly without the viewer needing to mentally flip it. What
+you drag is what you see: dragging the arrow tip directly sets the toward
+bearing, converted to "from" only where the value is stored (`setFromAngle`
+in `setupCompassDial()`).
+
+### Add a GPX run by drag-and-drop
+New drop zone above the chart (drag a `.gpx` file, or browse). Parsed
+entirely client-side (`DOMParser`, no server) using the identical
+methodology as every embedded run — haversine cumulative distance,
+central-difference speed — so a dropped-in run is directly comparable, not
+a second data source with a different basis. Validated before being added
+(≥10 track points, total distance 500-2000m, start point within 300m of
+this course's known start) to avoid silently corrupting the corner-geometry
+fit with an unrelated file. Confirmed with the user this only needs to be
+**session-only** — added runs live in memory (`runsData`/`allRoutePoints`
+arrays get `.push()`ed) and are lost on refresh, not written back into the
+HTML file. A newly added run participates in track geometry exactly like
+any other non-excluded run (per the toggle-vs-geometry split above).
+
+---
+
+## Session update: rename/retitle, param grid fix, route map
+
+Renamed the app to **Harewood Gravity Kart Simulator** (`<title>` + `<h1>`,
+doc title above). Renamed the Farmhouse corner to **Farmhouse/Croisdale**
+everywhere (name field, comments, section labels, this doc).
+
+**Param grid fix**: the μ input's description was shortened, but the actual
+cause of Brake Confidence wrapping to its own row was the grid's
+`minmax(140px, 1fr)` not fitting 5 columns at typical widths (CSS Grid
+column count is width-driven, not content-height-driven — a longer/shorter
+description text doesn't change it). Reduced to `minmax(100px, 1fr)` so all
+five vehicle/track params sit in one row.
+
+### Route map (real basemap — the one part of this file that needs internet)
+Everything else here has been deliberately offline/self-contained all
+session; this is a genuine exception, confirmed with the user first. Added
+Leaflet (CDN) with two switchable tile layers — OpenStreetMap street and Esri
+World Imagery satellite, both free, no API key. New "Route Map" section,
+`initRouteMap()` once at load, `refreshRouteMap()` called from `updateChart()`
+so it stays live with every parameter change.
+
+- **Speed heatmap**: the known GPS line resampled every 8m (interpolated
+  between the real points via `interpolateRoutePoint()` — no fabricated
+  geometry beyond straight lines between known points), each short segment
+  coloured by the live *predicted* speed there (blue→white→red) using the
+  already-returned 10m-resolution `predicted` array — no need to expose the
+  finer 1m `mergedV` grid just for this.
+- **Corners**: a translucent band along each corner's own `d0`-`d1` span plus
+  an apex marker (`CORNER_COLORS`, matching the chart), with a popup showing
+  the same grip limit / predicted apex / actual apex numbers as the corner
+  panel — same numbers, different view, not a second source of truth.
+- **Braking zones**: dashed red overlay + start marker wherever
+  `zoneState.brakePointDist` is active — empty by default at the current
+  calibrated μ≈0.50 (every corner currently shows "no straight-line braking
+  needed"), confirmed working by temporarily lowering μ to 0.25 and back.
+
+Verified end-to-end in the live preview: tiles load on both layers, heatmap
+colours and corner popups match the panel/chart numbers, braking markers
+render correctly when active, no console errors.
