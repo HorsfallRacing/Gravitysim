@@ -280,6 +280,16 @@ body {
     background: var(--surface);
   }
   .param-box small { font-size: 10.5px; color: var(--text-faint); margin-top: 4px; line-height: 1.4; }
+  .param-box input[readonly] { background: #f0f1f3; color: var(--text-muted); cursor: not-allowed; }
+
+  .geometry-output { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .geometry-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-faint); font-weight: 700; margin-bottom: 3px; }
+  .geometry-stat-value { font-size: 16px; font-weight: 700; color: var(--text); }
+  .geometry-stat-value .unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 2px; }
+  .geometry-status { grid-column: 1 / -1; font-size: 12px; padding: 10px 12px; border-radius: var(--radius-sm); margin-top: 2px; }
+  .geometry-status.ok { background: #eafaf1; color: #1e8449; }
+  .geometry-status.warn { background: #fef5e7; color: #b9770e; }
+  .geometry-status.bad { background: #fdedec; color: #c0392b; }
 
   .wind-panel { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
   .wind-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
@@ -555,8 +565,8 @@ function clearCalculator() {
     <div class="param-grid">
       <div class="param-box">
         <label>Mass (kg)</label>
-        <input type="number" id="mass" value="125.3" min="50" max="160" step="0.1">
-        <small>Fully loaded, measured</small>
+        <input type="number" id="mass" value="125.3" min="50" max="160" step="0.1" readonly>
+        <small>Derived: FL+FR+RL+RR from Vehicle Geometry below</small>
       </div>
       <div class="param-box">
         <label>CdA (m²)</label>
@@ -645,6 +655,49 @@ function clearCalculator() {
     </div>
   </div>
 
+  <div class="geometry card">
+    <h3>Vehicle Geometry</h3>
+    <p class="card-note">Corner weights + wheelbase derive mass and CofG position directly — no guessing there. CofG height is the one figure still estimated; the rollover-margin check below shows how much that estimate actually matters to the result.</p>
+    <div class="param-grid">
+      <div class="param-box">
+        <label>Corner Weight FL (kg)</label>
+        <input type="number" id="cwFL" value="34.3" min="0" max="80" step="0.1">
+      </div>
+      <div class="param-box">
+        <label>Corner Weight FR (kg)</label>
+        <input type="number" id="cwFR" value="34.9" min="0" max="80" step="0.1">
+      </div>
+      <div class="param-box">
+        <label>Corner Weight RL (kg)</label>
+        <input type="number" id="cwRL" value="27" min="0" max="80" step="0.1">
+      </div>
+      <div class="param-box">
+        <label>Corner Weight RR (kg)</label>
+        <input type="number" id="cwRR" value="29.1" min="0" max="80" step="0.1">
+        <small>All four: fully loaded, static, measured</small>
+      </div>
+      <div class="param-box">
+        <label>Wheelbase (mm)</label>
+        <input type="number" id="wheelbase" value="1345" min="800" max="2000" step="1">
+        <small>Unconfirmed — flagged for double-check</small>
+      </div>
+      <div class="param-box">
+        <label>Track Width Front (mm)</label>
+        <input type="number" id="trackF" value="1060" min="600" max="1600" step="1">
+      </div>
+      <div class="param-box">
+        <label>Track Width Rear (mm)</label>
+        <input type="number" id="trackR" value="1060" min="600" max="1600" step="1">
+      </div>
+      <div class="param-box">
+        <label>CofG Height (mm)</label>
+        <input type="number" id="cgHeight" value="300" min="150" max="600" step="5">
+        <small>Estimate, not measured — see margin check</small>
+      </div>
+    </div>
+    <div id="geometryOutput" class="geometry-output"></div>
+  </div>
+
   <div class="map-panel card">
     <h3>Route Map</h3>
     <p class="card-note">Predicted speed heatmap along the actual GPS line (updates live with the parameters above) · named corners highlighted · braking zones marked. Map tiles require an internet connection — everything else on this page works offline.</p>
@@ -723,7 +776,7 @@ function clearCalculator() {
 
   <div class="corners card">
     <h3>Corners</h3>
-    <p class="card-note">Location, direction and radius come from GPS heading/curvature, not speed. Grip limit and predicted apex speed come from a forward (coast) / backward (max-brake) envelope pass — see main description above. Actual apex speed is shown purely as a validation reference.</p>
+    <p class="card-note">Location, direction and radius come from GPS heading/curvature, not speed. Grip limit and predicted apex speed come from a forward (coast) / backward (max-brake) envelope pass — see main description above. Actual apex speed is shown purely as a validation reference. Load transfer is exact rigid-body statics (weight × lateral g × CofG height ÷ track) at the predicted apex — it shows how much load moves to the outside tyres, not how much grip that costs; no tyre load-sensitivity curve is assumed, so don't read a speed penalty into it.</p>
     <div id="cornerAnalysis"></div>
     <p class="disclaimer-note">⚠ Grip limits, apex speeds and braking figures below are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
   </div>
@@ -901,9 +954,52 @@ const runColors = ['#3498DB', '#2E86C1', '#16A085', '#138D75', '#0E6251', '#0B53
 let windMode = 'manual';
 let actualWindDir = 225; // placeholder until a verified reading is confirmed
 
+// Corner weights + wheelbase are the source of truth for mass and CofG
+// position — the Mass field above is derived from them (readonly) so the
+// two can't drift out of sync. CofG height alone stays a user estimate;
+// see renderGeometryPanel() for why that's an acceptable gap.
+function getGeometry() {
+  const FL = parseFloat(document.getElementById('cwFL').value);
+  const FR = parseFloat(document.getElementById('cwFR').value);
+  const RL = parseFloat(document.getElementById('cwRL').value);
+  const RR = parseFloat(document.getElementById('cwRR').value);
+  const mass = FL + FR + RL + RR;
+  const wheelbase = parseFloat(document.getElementById('wheelbase').value) / 1000; // m
+  const trackF = parseFloat(document.getElementById('trackF').value) / 1000; // m
+  const trackR = parseFloat(document.getElementById('trackR').value) / 1000; // m
+  const cgHeight = parseFloat(document.getElementById('cgHeight').value) / 1000; // m
+
+  const frontMass = FL + FR, rearMass = RL + RR;
+  const leftMass = FL + RL, rightMass = FR + RR;
+  const frontFrac = frontMass / mass, rearFrac = rearMass / mass;
+  const cgFromFront = wheelbase * rearFrac; // m — CofG sits closer to the heavier axle
+  const cgFromRear = wheelbase * frontFrac;
+
+  // Quasi-static rigid-body rollover threshold: a_lat = g*(track/2)/h_cg.
+  // Ignores suspension roll compliance and tyre deformation, so it's an
+  // upper bound on the real rollover limit, not an exact figure — fine for
+  // a margin check (is grip or rollover the binding constraint?), not for
+  // treating the number itself as precise.
+  const trackMin = Math.min(trackF, trackR);
+  const aRoll = g * (trackMin / 2) / cgHeight;
+
+  return { FL, FR, RL, RR, mass, wheelbase, trackF, trackR, cgHeight,
+           frontMass, rearMass, leftMass, rightMass, frontFrac, rearFrac,
+           cgFromFront, cgFromRear, aRoll };
+}
+
 function getParams() {
+  const geo = getGeometry();
+  document.getElementById('mass').value = geo.mass.toFixed(1);
   return {
-    mass: parseFloat(document.getElementById('mass').value),
+    mass: geo.mass,
+    aRoll: geo.aRoll,
+    frontMass: geo.frontMass,
+    rearMass: geo.rearMass,
+    trackF: geo.trackF,
+    trackR: geo.trackR,
+    cgHeight: geo.cgHeight,
+    FL: geo.FL, FR: geo.FR, RL: geo.RL, RR: geo.RR,
     cda: parseFloat(document.getElementById('cda').value),
     crr: parseFloat(document.getElementById('crr').value),
     rho: RHO,
@@ -1434,7 +1530,19 @@ function accelAt(d, v_kmh, params, brakeOn) {
 }
 
 function cornerLimitAt(d, params) {
-  return Math.sqrt(Math.max(0, params.mu) * g * localRadiusAtDistance(d)) * 3.6;
+  const r = localRadiusAtDistance(d);
+  const vSlide = Math.sqrt(Math.max(0, params.mu) * g * r);
+  const vRoll = Math.sqrt(Math.max(0, params.aRoll) * r);
+  return Math.min(vSlide, vRoll) * 3.6;
+}
+
+// Geometric lateral load transfer for one axle — exact rigid-body statics
+// (roll moment m·ay·h balanced by a force couple across the track), no tyre
+// model involved. Returns kg shifted from the inside tyre to the outside
+// tyre; NOT a grip correction (see the load-transfer diagnostic notes near
+// its use in predictPaceWithDiagnostics for why we stop short of that).
+function axleLoadTransferKg(ay, axleMass, track, cgHeight) {
+  return axleMass * (ay / g) * cgHeight / track;
 }
 
 function forwardEnvelope(params) {
@@ -1617,6 +1725,32 @@ function predictPaceWithDiagnostics(params) {
     for (let d = Math.round(z.d0); d > prevEnd; d--) {
       if (bwdV[d] < fwdV[d] - 0.05) brakePointDist = d; else break;
     }
+
+    // Lateral load transfer at this corner's predicted apex — geometric
+    // only (rigid-body statics via axleLoadTransferKg), not a grip
+    // correction. Deliberately stops at "how much load moved," not "how
+    // much grip that costs" — see axleLoadTransferKg's comment for why.
+    let loadTransfer = null;
+    if (z.radius && isFinite(predictedApex)) {
+      const ay = Math.pow(predictedApex / 3.6, 2) / z.radius;
+      const dFront = axleLoadTransferKg(ay, params.frontMass, params.trackF, params.cgHeight);
+      const dRear = axleLoadTransferKg(ay, params.rearMass, params.trackR, params.cgHeight);
+      const outerIsRight = z.direction === 'left'; // left-hand turn loads the right-side tyres
+      const frontOuterStatic = outerIsRight ? params.FR : params.FL;
+      const frontInnerStatic = outerIsRight ? params.FL : params.FR;
+      const rearOuterStatic = outerIsRight ? params.RR : params.RL;
+      const rearInnerStatic = outerIsRight ? params.RL : params.RR;
+      loadTransfer = {
+        ay,
+        frontOuterLoad: frontOuterStatic + dFront / 2,
+        frontInnerLoad: frontInnerStatic - dFront / 2,
+        rearOuterLoad: rearOuterStatic + dRear / 2,
+        rearInnerLoad: rearInnerStatic - dRear / 2,
+        frontPct: (dFront / params.frontMass) * 100,
+        rearPct: (dRear / params.rearMass) * 100
+      };
+    }
+
     return {
       name: z.name,
       dist: apexAtDist,
@@ -1625,6 +1759,7 @@ function predictPaceWithDiagnostics(params) {
       recordedApexSpeed: z.recordedApexSpeed,
       brakePointDist,
       brakeDistance: brakePointDist !== null ? apexAtDist - brakePointDist : 0,
+      loadTransfer,
       maxBrakeDecel
     };
   });
@@ -1821,11 +1956,45 @@ function refreshMapLegend(vMin, vMax, brakingZoneCount) {
   `;
 }
 
+// Renders the derived mass/CofG stats and the rollover-vs-slide margin
+// check. mu is read fresh here (not just from params.mu) so this reflects
+// whatever's in the μ field right now, same as the rest of the panel.
+function renderGeometryPanel(params) {
+  const geo = getGeometry();
+  const mu = Math.max(0, params.mu);
+  const aGrip = mu * g;
+  const margin = geo.aRoll / aGrip;
+  const asymmetry = Math.abs(geo.leftMass - geo.rightMass);
+
+  let statusClass, statusText;
+  if (margin >= 1.5) {
+    statusClass = 'ok';
+    statusText = `Slide-limited, comfortably: the car would need ${margin.toFixed(1)}× today's grip-limited lateral g before rollover threatens to bind instead of tyre grip. The friction-circle cornering model above is a safe fit for this geometry.`;
+  } else if (margin >= 1.0) {
+    statusClass = 'warn';
+    statusText = `Slide-limited, but with a shrinking margin (${margin.toFixed(2)}×). Worth firming up the CofG height estimate before trusting this closely, especially for a lower/narrower concept.`;
+  } else {
+    statusClass = 'bad';
+    statusText = `Rollover-limited at these parameters (margin ${margin.toFixed(2)}×): the car would tip before it slides, so the corner speed above is already being capped by rollover, not grip. Check the CofG height and track width figures.`;
+  }
+
+  document.getElementById('geometryOutput').innerHTML = `
+    <div><div class="geometry-stat-label">Total Mass</div><div class="geometry-stat-value">${geo.mass.toFixed(1)}<span class="unit">kg</span></div></div>
+    <div><div class="geometry-stat-label">Front / Rear Split</div><div class="geometry-stat-value">${(geo.frontFrac*100).toFixed(1)}<span class="unit">% / ${(geo.rearFrac*100).toFixed(1)}%</span></div></div>
+    <div><div class="geometry-stat-label">CofG from Front Axle</div><div class="geometry-stat-value">${(geo.cgFromFront*1000).toFixed(0)}<span class="unit">mm</span></div></div>
+    <div><div class="geometry-stat-label">Left / Right Balance</div><div class="geometry-stat-value">${geo.leftMass.toFixed(1)} / ${geo.rightMass.toFixed(1)}<span class="unit">kg (Δ${asymmetry.toFixed(1)})</span></div></div>
+    <div><div class="geometry-stat-label">Rollover Threshold</div><div class="geometry-stat-value">${(geo.aRoll/g).toFixed(2)}<span class="unit">g</span></div></div>
+    <div><div class="geometry-stat-label">Grip Limit (current μ)</div><div class="geometry-stat-value">${(aGrip/g).toFixed(2)}<span class="unit">g</span></div></div>
+    <div class="geometry-status ${statusClass}">${statusText}</div>
+  `;
+}
+
 function updateChart() {
   // Cheap to redo every call — keeps corner radius/apex-speed stats in sync
   // with whichever runs are currently toggled visible in the legend.
   cornerFitResults = refreshCornerGeometry();
   const params = getParams();
+  renderGeometryPanel(params);
   const result = predictPaceWithDiagnostics(params);
   const predicted = result.data;
   const runTime = result.time;
@@ -1967,6 +2136,10 @@ function updateChart() {
     const brakeStr = z.brakePointDist !== null
       ? `braking from ${z.brakeDistance.toFixed(0)}m out, up to ${z.maxBrakeDecel.toFixed(2)} m/s² (${(z.maxBrakeDecel/g).toFixed(2)}g)`
       : `no straight-line braking needed — carried in on grip/gravity/drag alone`;
+    const lt = z.loadTransfer;
+    const loadTransferStr = lt
+      ? `load transfer @ apex (${(lt.ay/g).toFixed(2)}g): front outer ${lt.frontOuterLoad.toFixed(1)}kg / inner ${lt.frontInnerLoad.toFixed(1)}kg (${lt.frontPct >= 0 ? '+' : ''}${lt.frontPct.toFixed(0)}%) · rear outer ${lt.rearOuterLoad.toFixed(1)}kg / inner ${lt.rearInnerLoad.toFixed(1)}kg (${lt.rearPct >= 0 ? '+' : ''}${lt.rearPct.toFixed(0)}%)${(lt.frontInnerLoad < 0 || lt.rearInnerLoad < 0) ? ' — inner load goes negative: geometry predicts wheel lift, not just underload' : ''}`
+      : 'load transfer: n/a (no radius fit)';
     return `
     <div class="corner-box" style="border-left-color: ${color};">
       <div class="corner-title">${zone.name}</div>
@@ -1982,6 +2155,7 @@ function updateChart() {
         </div>
       </div>
       <small class="corner-footnote">${refStr} · ${brakeStr}</small>
+      <small class="corner-footnote">${loadTransferStr}</small>
     </div>`;
   }).join('');
   
@@ -2060,7 +2234,8 @@ function setupCompassDial(svgId, needleId, readoutId, compassLabelSelector, init
 document.addEventListener('DOMContentLoaded', function() {
   initRouteMap();
   if (CALIBRATED_MU) document.getElementById('mu').value = CALIBRATED_MU.toFixed(2);
-  ['mass', 'cda', 'crr', 'mu', 'brakeConfidence', 'windSpeed'].forEach(id => {
+  ['cda', 'crr', 'mu', 'brakeConfidence', 'windSpeed',
+   'cwFL', 'cwFR', 'cwRL', 'cwRR', 'wheelbase', 'trackF', 'trackR', 'cgHeight'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateChart);
     document.getElementById(id).addEventListener('input', updateChart);
   });
