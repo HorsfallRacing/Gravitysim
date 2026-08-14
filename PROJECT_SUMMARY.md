@@ -561,3 +561,154 @@ so it stays live with every parameter change.
 Verified end-to-end in the live preview: tiles load on both layers, heatmap
 colours and corner popups match the panel/chart numbers, braking markers
 render correctly when active, no console errors.
+
+---
+
+## Session update: layout restructure — sticky input rail, sensitivity panel
+
+Presentation-layer session. **No physics changed** — `predictPaceWithDiagnostics()`,
+`analyzeCorners()`, the envelope passes and every constant are untouched. What
+changed is the order things appear in, and two new panels that read the model's
+existing outputs.
+
+### The finding that drove it
+Sweeping each vehicle parameter ±10% through the existing predictor:
+
+| Parameter | Δ run time |
+|---|---|
+| **μ (grip)** | **−0.91s / +2.32s** |
+| Mass | −0.25s / +0.37s |
+| Crr | −0.20s / +0.20s |
+| CdA | −0.17s / +0.21s |
+| Brake confidence | −0.05s / +0.06s |
+
+Grip moves run time ~5× more than the next parameter and ~13× more than CdA.
+Two things worth recording:
+- **Grip response is asymmetric** — losing 10% costs 2.32s, gaining 10% returns
+  0.91s. The current μ≈0.50 sits on the steep side of the curve (sweeping
+  μ 0.30→0.80 spans 96.5s→75.3s), so grip *uncertainty* is a bigger risk than
+  grip *improvement* is an opportunity.
+- **Mass runs backwards from intuition** — 10% heavier is 0.25s *faster*, since
+  gravity scales with mass and drag doesn't. Lightening this vehicle to find
+  time works against the physics.
+- **Brake confidence is currently inert** (0.05s, below the model's own 4–16 km/h
+  RMSE floor) because at μ≈0.50 the backward/max-brake envelope never binds —
+  consistent with the map legend showing no braking zones. It becomes live again
+  below roughly μ=0.4; kept as an input, demoted in the rail.
+
+The energy breakdown agrees from the other direction: cornering scrub is 51.8
+of 84.6 kJ (61%), ~3× what drag costs. **This is a grip problem, not a drag problem.**
+
+### Layout
+Container width bug fixed first: `.container`'s `max-width: 1240px` was being
+silently capped to ~836px by the site's legacy `<table width="847">` chrome, so
+it had never actually applied. `#gravitySimSection` now breaks out to
+`min(1240px, calc(100vw - 48px))` via a negative-margin centring trick (every
+ancestor is `overflow: visible`, so this is safe). The rest of the site keeps
+its original ~860px layout.
+
+- **Sticky left rail (304px)** holds all inputs, grouped by dependency: Grip &
+  driver → Mass & balance → Vehicle geometry → Aero & rolling, with Conditions
+  (wind) and Runs (GPX) collapsed into disclosures. Inputs and results now share
+  a screen, which is the point — the page is used iteratively.
+  - Implementation note: `.rail` is a **stretched** grid item wrapping a sticky
+    `.rail-inner`. Sticky inside a content-height item has no travel and does
+    nothing; this was the one real trap in the restructure.
+  - The read-only Mass field is gone — mass is derived, so it's now a live chip
+    under the four corner weights it comes from.
+  - Provenance markers (measured / estimated / unverified) replace the
+    inconsistent `<small>` captions.
+- **Readout order**: result band → sensitivity + energy budget → speed trace →
+  derived geometry → corners → fidelity → route map (demoted to context).
+
+### New panels
+- **Sensitivity** (`renderSensitivity`) — the tornado chart above, live. ~10
+  extra predictor calls, ~40ms, debounced 140ms since `updateChart()` fires on
+  every keystroke. Sorted by span; bars auto-scale with a 0.5s floor so a flat
+  set doesn't get magnified into false drama.
+- **Energy budget** (`renderEnergyBudget`) — the five energy tiles as one
+  stacked bar, with the calibrated baseline as a ghost bar beneath. KE-at-line
+  is derived as the residual (`available − cornering − drag − rr − braking`),
+  which is the ~9.4 kJ previously noted as unexplained remainder.
+- **Baseline + Δ** — `BASELINE` is captured after first render (so it picks up
+  `CALIBRATED_MU`, computed at load, not the markup fallback). Any change shows
+  as "±Xs vs baseline" with a reset.
+
+### Rebuilt panels
+- **Corners**: 6 verbose boxes → one table sorted by **|predicted − actual|**,
+  so the misses lead (Chippy's +15.3, Willow −6.3) instead of being buried in
+  course order. Radius spreads wider than 1.2× the median get a ⚠ (catches
+  Willow's known 28–102m fit). Load transfer moved behind a row expander.
+- **Model vs Reality**: 4 identical text blocks → 4 rows sorted worst-first with
+  RMSE encoded as bar length as well as digits. Willow→finish (16.27 km/h)
+  previously rendered identically to Launch→Farmhouse (4.01).
+
+Dead CSS removed: `.metrics`/`.metric-*`, `.diag-section`, `.corner-box` and
+friends, `.param-grid` (the lap calculator's separate `.lap-*` rules are untouched).
+
+### Verified
+Two-column shell resolves to 304px/872px at 1440px viewport; rail confirmed
+pinned at `top:14px` while the readout scrolls past; all values match the
+pre-restructure figures (83.5s, 36.0 km/h finish, 66.3/74.0 peak, 84.6 kJ);
+μ→0.35 correctly re-sorts the corner table, surfaces a braking zone at 53m out,
+and shifts the energy split; reset restores baseline; compass drag still works
+inside its disclosure; no sim-originated layout overflow at any width. The only
+console error is the pre-existing legacy `MM_preloadImages` from the site's
+Dreamweaver chrome.
+
+**Not done:** the gradient strip under the speed trace (proposed, would share
+the chart's x-axis to put the "why" next to the "what") — left out as it's the
+one item that touches chart config rather than layout.
+
+---
+
+## Session update: map re-centre, lap calculator moved/unit-toggled
+
+Follow-on presentation work. No physics touched.
+
+### Route map: re-centre control
+The map is pannable and zoomable, so an accidental drag could lose the course
+entirely with no way back. `routeHomeBounds` now holds the opening framing
+(`bounds.pad(0.12)`) as a module-level constant, and a `topleft` Leaflet control
+calls `recentreRouteMap()` to `fitBounds()` back to it. Deliberately stores the
+*opening* bounds rather than recomputing from current state, so repeated use
+always returns to the same framing. Verified restoring from both a far-off pan
+at the same zoom and a pan combined with zoom-out (z12) and zoom-in (z18).
+
+### Lap Speed Calculator moved below the simulator
+Was above it, pushing the sim down the page. Now sits after
+`#gravitySimSection`, and matched to it exactly: same
+`min(1240px, calc(100vw - 48px))` breakout, same `#f2f4f7` ground, same 20px
+padding — so both render at an identical 1240px outer / 1200px inner and read
+as one continuous surface rather than two separate pages. The `<hr>` between
+them became `.section-rule`, widened from its old fixed 860px to the same
+breakout width. Verified pixel-identical at 1440px and 820px viewports.
+
+Note the horizontal scroll that appears below ~870px viewport width is
+pre-existing legacy chrome (the site's fixed 860px header images / 847px layout
+table, measured at 990px), not the sim or the calculator — both sit inside it.
+
+### Unit toggle (MPH ↔ KM/H)
+One segmented control now drives both input and output: `lapUnit` is
+`'imperial'` (miles in, MPH out) or `'metric'` (kilometres in, KM/H out). The
+selected unit is the large primary readout; the converted equivalent shows
+beside it as a secondary tile, so the conversion isn't lost.
+
+**Toggling converts any distance already entered** (`setLapUnit()`), so the
+toggle changes the units the lap is *expressed in*, not the lap itself — the
+resulting speed stays the same physical speed, just relabelled. Verified:
+1 mile / 60s = 60.00 MPH / 96.56 KM/H; switching to metric gives 1.609 km →
+96.54 KM/H / 59.99 MPH; switching back returns exactly 1.000 miles / 60.00 MPH.
+The ~0.02 drift is the distance field rounding to 3dp to match its own
+`step="0.001"` — round-trips are stable, and holding more precision would put
+unreadable values like `1.609344` in the input.
+
+Old `#mph`/`#kmh` element IDs are replaced by `#lapPrimary`/`#lapSecondary`
+(plus `#lapPrimaryUnit`/`#lapSecondaryUnit`/`#distanceUnit` for the labels).
+The toggle is wired on `DOMContentLoaded` since the markup now sits after the
+script that defines its handlers.
+
+### Legacy title removed
+The Dreamweaver-era `>Lap Speed Calculator` heading (a `<FONT size=+2>` string
+split across three spans inside the layout table) is gone — the calculator's own
+`.lap-header` already titles it.

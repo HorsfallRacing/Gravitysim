@@ -55,7 +55,7 @@ body {
     border-radius: 14px;
     box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
     padding: 22px;
-    margin-bottom: 40px;
+    margin-bottom: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -185,10 +185,74 @@ body {
     margin: auto;
 }
 
+/* Matched to #gravitySimSection: the same breakout width, ground and padding,
+   so the calculator reads as a continuation of the simulator's surface rather
+   than a second page. Both escape the site's legacy 847px layout table the
+   same way (every ancestor is overflow:visible, so this is safe). */
 .calculator-wrapper {
-    width: 860px;
-    margin: auto;
+    --lap-width: min(1240px, calc(100vw - 48px));
+    box-sizing: border-box;
+    width: var(--lap-width);
+    margin: 0 0 0 calc(50% - var(--lap-width) / 2);
+    padding: 12px 20px 28px 20px;
+    background: #f2f4f7;
+    text-align: left;
 }
+.calculator-wrapper * { box-sizing: border-box; }
+
+.section-rule {
+    --rule-width: min(1240px, calc(100vw - 48px));
+    width: var(--rule-width);
+    margin: 40px 0 0 calc(50% - var(--rule-width) / 2);
+    border: none;
+    border-top: 1px solid #ccc;
+}
+
+.lap-unit-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e2e5ea;
+}
+
+.lap-unit-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #6b7280;
+}
+
+.lap-unit-toggle {
+    display: flex;
+    border: 1px solid #e2e5ea;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.lap-unit-btn {
+    background: #ffffff;
+    border: none;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, color .15s;
+}
+
+.lap-unit-btn:hover:not(.active) { background: #f4f5f7; }
+.lap-unit-btn.active { background: #2f7dd1; color: #ffffff; }
+.lap-unit-btn:focus-visible { outline: 2px solid #2f7dd1; outline-offset: -2px; }
+
+.lap-metric-primary { background: #eaf3fc; border-color: #cfe3f7; }
+.lap-metric-primary .lap-metric-value { font-size: 28px; color: #1f5fa8; }
+.lap-metric-primary .lap-metric-label { color: #1f5fa8; }
 </style>
 
 <!-- Gravity Kart Simulator: external libs -->
@@ -221,11 +285,47 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
-    margin: 0;
+    /* This section sits inside the site's legacy <table width="847"> chrome,
+       which silently capped .container at ~836px and defeated its own
+       max-width:1240px. Breaking out to viewport width is what makes the
+       two-column control-rail/readout layout viable — the rest of the page
+       keeps its original ~860px layout untouched. Every ancestor is
+       overflow:visible, so this escape is safe. */
+    --sim-width: min(1240px, calc(100vw - 48px));
+    width: var(--sim-width);
+    margin: 0 0 0 calc(50% - var(--sim-width) / 2);
     padding: 28px 20px;
+    text-align: left;
     -webkit-font-smoothing: antialiased;
   }
   .container { max-width: 1240px; margin: 0 auto; }
+
+  /* --- Two-column shell: sticky input rail + scrolling readout ---
+     .rail is a stretched grid item (NOT align-self:start) so .rail-inner has a
+     tall containing block to stick within — sticky inside a content-height
+     grid item has nothing to travel across and silently does nothing. */
+  .sim-layout {
+    display: grid;
+    grid-template-columns: 304px minmax(0, 1fr);
+    gap: var(--gap);
+    align-items: stretch;
+  }
+  .rail { min-width: 0; }
+  .rail-inner {
+    position: sticky;
+    top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    max-height: calc(100vh - 28px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .readout { min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+  /* .card carries its own margin-bottom for the old stacked layout; inside the
+     flex columns above, gap handles spacing and the margin would double it. */
+  .rail-inner > .card, .readout > .card, .readout > .result-band { margin-bottom: 0; }
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -256,11 +356,11 @@ body {
     padding: 20px 24px;
     margin-bottom: var(--gap);
     box-shadow: var(--shadow-md);
+    text-align: center; /* section is now text-align:left; header keeps its original centring */
   }
   .header h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
   .header h2 { margin: 6px 0 0 0; font-size: 14px; font-weight: 500; opacity: .9; }
 
-  .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; margin-top: 14px; }
   .param-box { display: flex; flex-direction: column; }
   .param-box label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 7px; font-weight: 700; }
   .param-box input {
@@ -333,43 +433,9 @@ body {
   #uploadStatus.error { color: var(--danger); }
   #uploadStatus.success { color: var(--success); }
 
-  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: var(--gap); }
-  .metric {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-    padding: 14px 16px;
-    transition: box-shadow .15s, transform .15s;
-  }
-  .metric:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .metric-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; font-weight: 700; }
-  .metric-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
-  .metric-unit { font-size: 10.5px; color: var(--text-faint); margin-top: 5px; }
-
-  .diag-section {
-    background: #f8f9fb;
-    border-left: 3px solid var(--accent);
-    padding: 13px 14px;
-    margin-bottom: 10px;
-    font-size: 11.5px;
-    border-radius: var(--radius-sm);
-    font-family: ui-monospace, "SF Mono", Consolas, monospace;
-    line-height: 1.7;
-  }
-  .diag-section:last-child { margin-bottom: 0; }
-  .diag-section strong { color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12.5px; }
-  .diag-gap { color: var(--danger); font-weight: 700; }
-
-  .corner-box { background: #f8f9fb; border-left: 3px solid var(--accent); padding: 14px 16px; margin-bottom: 10px; border-radius: var(--radius-sm); }
-  .corner-box:last-child { margin-bottom: 0; }
-  .corner-title { font-size: 14px; font-weight: 700; color: var(--text); }
-  .corner-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
-  .corner-stats { display: flex; gap: 28px; flex-wrap: wrap; margin: 12px 0; }
-  .corner-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-faint); font-weight: 700; margin-bottom: 3px; }
-  .corner-stat-value { font-size: 18px; font-weight: 700; color: var(--text); }
-  .corner-stat-value .unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 2px; }
-  .corner-footnote { display: block; color: var(--text-faint); font-size: 10.5px; padding-top: 10px; border-top: 1px solid var(--border); line-height: 1.5; }
+  /* The flat .metrics tile grid, .diag-section text blocks and .corner-box
+     cards were replaced by the result band, fidelity table and corner table
+     respectively — their rules are gone rather than left as dead weight. */
 
   #routeMap { height: 480px; border-radius: var(--radius-md); border: 1px solid var(--border); background: #eee; }
   .map-overlay-toggle {
@@ -381,6 +447,25 @@ body {
     color: var(--text);
     line-height: 1.9;
   }
+  .map-recentre button {
+    background: var(--surface);
+    border: none;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    padding: 7px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: background .15s, color .15s;
+  }
+  .map-recentre button:hover { background: var(--accent); color: #fff; }
+  .map-recentre button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .map-overlay-toggle-row { display: flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
   .map-overlay-toggle-row input { cursor: pointer; margin: 0; }
   .map-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: var(--text-muted); }
@@ -391,12 +476,174 @@ body {
   .map-legend .legend-empty-note { color: var(--text-faint); font-style: italic; }
   .disclaimer-note { font-size: 10.5px; color: var(--text-faint); margin: 10px 0 0 0; line-height: 1.5; }
 
+  /* ================= Rail: grouped inputs ================= */
+  .rail-group { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 15px; }
+  .rail-group:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .rail-group-title {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-muted); margin: 0 0 10px 0;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .rail-group-title .hint { font-size: 9.5px; font-weight: 600; color: var(--text-faint); letter-spacing: .02em; text-transform: none; }
+  .rail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .rail-grid.single { grid-template-columns: 1fr; }
+  .rail-grid .param-box input { font-size: 13px; padding: 7px 9px; }
+  .rail-grid .param-box label { margin-bottom: 5px; font-size: 10px; }
+
+  /* Provenance markers — one consistent vocabulary replacing the mixed <small> captions */
+  .conf { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-top: 5px; }
+  .conf::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .conf.measured { color: var(--success); }
+  .conf.measured::before { background: var(--success); }
+  .conf.estimated { color: #b9770e; }
+  .conf.estimated::before { background: #b9770e; }
+  .conf.unverified { color: var(--danger); }
+  .conf.unverified::before { background: var(--danger); }
+
+  .derived-chip {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    background: var(--accent-soft); border: 1px solid #cfe3f7;
+    border-radius: var(--radius-sm); padding: 9px 11px; margin-top: 12px;
+  }
+  .derived-chip .dc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-dark); }
+  .derived-chip .dc-value { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 15px; font-weight: 700; color: var(--accent-dark); }
+  .derived-chip .dc-value .unit { font-size: 10.5px; font-weight: 600; }
+
+  .rail-disclosure { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 14px; }
+  .rail-disclosure > summary {
+    cursor: pointer; list-style: none; font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .rail-disclosure > summary::-webkit-details-marker { display: none; }
+  .rail-disclosure > summary::after { content: '▸'; font-size: 11px; color: var(--text-faint); transition: transform .15s; }
+  .rail-disclosure[open] > summary::after { transform: rotate(90deg); }
+  .rail-disclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+  .rail-disclosure > summary .hint { font-size: 9.5px; font-weight: 600; color: var(--text-faint); letter-spacing: .02em; text-transform: none; margin-left: auto; margin-right: 6px; }
+  .rail-disclosure .disclosure-body { padding-top: 12px; }
+  /* The wind panel and GPX dropzone were top-level cards; inside a disclosure
+     their own separators and card padding are redundant. */
+  .rail-disclosure .wind-panel { border-top: none; margin-top: 0; padding-top: 0; }
+  .rail-disclosure .run-upload { padding: 14px 12px; border-radius: var(--radius-md); }
+  .rail-disclosure .run-title-input { width: 100%; }
+
+  /* ================= A · Result band ================= */
+  .result-band {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 20px 22px;
+    display: grid; grid-template-columns: minmax(210px, 1.3fr) repeat(3, minmax(0, 1fr));
+    gap: 24px; align-items: start;
+  }
+  .rb-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 700; margin-bottom: 8px; }
+  .rb-hero-value { font-size: 46px; font-weight: 700; letter-spacing: -.025em; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+  .rb-hero-value .unit { font-size: 17px; font-weight: 600; color: var(--text-muted); margin-left: 4px; letter-spacing: 0; }
+  .rb-value { font-size: 24px; font-weight: 700; line-height: 1.05; color: var(--text); font-variant-numeric: tabular-nums; }
+  .rb-value .unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 3px; }
+  .rb-sub { font-size: 10.5px; color: var(--text-faint); margin-top: 6px; line-height: 1.45; }
+  .rb-pair { display: flex; gap: 18px; flex-wrap: wrap; }
+  .rb-pair .rb-value { font-size: 19px; }
+
+  /* Predicted time against the real 88–92s run window */
+  .range-track { position: relative; height: 9px; border-radius: 5px; background: #eaecf0; margin: 14px 0 6px; }
+  .range-band { position: absolute; top: 0; bottom: 0; background: #cbe8d6; border-left: 1px solid #7fbf95; border-right: 1px solid #7fbf95; }
+  .range-marker { position: absolute; top: -4px; width: 3px; height: 17px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+  .range-scale { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-faint); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+
+  .delta-chip {
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 10px;
+    font-size: 11px; font-weight: 700; font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    border-radius: 20px; padding: 3px 10px;
+  }
+  .delta-chip.faster { background: #eafaf1; color: #1e8449; }
+  .delta-chip.slower { background: #fdedec; color: #c0392b; }
+  .delta-chip.same { background: #f0f1f3; color: var(--text-muted); }
+  .delta-chip button {
+    background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+    font: inherit; color: inherit; opacity: .65; text-decoration: underline;
+  }
+  .delta-chip button:hover { opacity: 1; }
+
+  /* ================= B · Sensitivity ================= */
+  .tradeoff-pair { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: var(--gap); }
+  .sens-rows { display: grid; gap: 7px; }
+  .sens-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 96px; gap: 10px; align-items: center; }
+  .sens-name { font-size: 11px; font-weight: 700; text-align: right; color: var(--text); line-height: 1.25; }
+  .sens-name span { display: block; font-size: 9.5px; font-weight: 600; color: var(--text-faint); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  .sens-track { position: relative; height: 22px; background: #f6f7f9; border: 1px solid var(--border); border-radius: 4px; }
+  .sens-zero { position: absolute; top: -1px; bottom: -1px; width: 1px; background: #bcc4cf; }
+  .sens-bar { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: #aeb6c2; }
+  .sens-bar.dominant { background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 26%, #d0603b 100%); }
+  .sens-val { font-size: 10.5px; font-family: ui-monospace, "SF Mono", Consolas, monospace; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .sens-val b { color: var(--text); }
+  .sens-axis { display: grid; grid-template-columns: 88px minmax(0, 1fr) 96px; gap: 10px; margin-top: 4px; }
+  .sens-axis-inner { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-faint); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  .sens-lead { font-size: 11.5px; color: var(--text-muted); margin: 14px 0 0; line-height: 1.5; }
+  .sens-lead strong { color: var(--text); }
+
+  /* ================= C · Energy budget ================= */
+  .ebar { display: flex; height: 42px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+  .ebar div {
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 10.5px;
+    font-weight: 700; color: #fff; white-space: nowrap; min-width: 0;
+  }
+  .ebar-baseline { display: flex; height: 8px; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); margin-top: 6px; opacity: .45; }
+  .ebar-baseline div { min-width: 0; }
+  .ekey { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font-size: 10.5px; color: var(--text-muted); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  .ekey span { display: inline-flex; align-items: center; gap: 6px; }
+  .ekey i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+  /* ================= E/F · Data tables ================= */
+  .table-scroll { overflow-x: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
+  .data-table th {
+    text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--text-faint); padding: 0 10px 8px 0;
+    border-bottom: 1px solid #d5dae1; white-space: nowrap;
+  }
+  .data-table td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--border); color: var(--text-muted); vertical-align: middle; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table td.num { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+  .data-table .row-name { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; }
+  .data-table .row-name .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .data-table .row-meta { font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+  .data-table tr.expandable { cursor: pointer; }
+  .data-table tr.expandable:hover td { background: #f8f9fb; }
+  .data-table tr.detail-row td { padding-top: 0; padding-bottom: 12px; }
+  .detail-body { font-size: 10.5px; color: var(--text-faint); line-height: 1.6; background: #f8f9fb; border-radius: var(--radius-sm); padding: 10px 12px; }
+  .detail-body b { color: var(--text-muted); }
+
+  .pill { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 20px; white-space: nowrap; letter-spacing: .02em; }
+  .pill.good { background: #eafaf1; color: #1e8449; }
+  .pill.warn { background: #fef5e7; color: #b9770e; }
+  .pill.bad  { background: #fdedec; color: #c0392b; }
+  .pill.info { background: var(--accent-soft); color: var(--accent-dark); }
+
+  .dbar { position: relative; height: 13px; width: 104px; background: #f0f2f5; border-radius: 3px; border: 1px solid var(--border); }
+  .dbar .dzero { position: absolute; top: -1px; bottom: -1px; left: 50%; width: 1px; background: #bcc4cf; }
+  .dbar i { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; }
+  .dcell { display: flex; align-items: center; gap: 9px; }
+  .dcell .dval { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+
+  .rmse-bar { position: relative; height: 13px; width: 130px; background: #f0f2f5; border-radius: 3px; border: 1px solid var(--border); }
+  .rmse-bar i { position: absolute; top: 2px; bottom: 2px; left: 0; border-radius: 2px; }
+
+  @media (max-width: 1080px) {
+    .sim-layout { grid-template-columns: 1fr; }
+    .rail-inner { position: static; max-height: none; overflow: visible; }
+    .rail-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .tradeoff-pair { grid-template-columns: 1fr; }
+    .result-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @media (max-width: 640px) {
     #gravitySimSection { padding: 16px 12px; }
     .header h1 { font-size: 20px; }
     .card { padding: 16px; }
-    .metrics { grid-template-columns: repeat(2, 1fr); }
-    .corner-stats { gap: 20px; }
+    .result-band { grid-template-columns: 1fr; gap: 18px; }
+    .rb-hero-value { font-size: 38px; }
+    .sens-row, .sens-axis { grid-template-columns: 72px minmax(0, 1fr); }
+    .sens-val { grid-column: 2; text-align: left; }
+    .sens-axis > :last-child { display: none; }
   }
 </style>
 </head>
@@ -440,19 +687,21 @@ body {
         <tr>
           <td height="21" colspan="6"><P>
             <CENTER>
-              <p align="left"><span class="style12"><FONT face=Arial size=+2>&gt;L</FONT></span><em><strong><FONT face=Arial size=+2>a</FONT></strong></em><span class="style12"><FONT face=Arial size=+2>p Speed Calculator</FONT></span></p>
-            </CENTER>
-            <CENTER>
               <p>
                 <title>Untitled Document</title>
                 <script>
+// 'imperial' = distance in miles, primary speed in MPH.
+// 'metric'   = distance in kilometres, primary speed in KM/H.
+let lapUnit = 'imperial';
+const KM_PER_MILE = 1.609344;
+
 function calculateLapSpeed() {
 
     const distance = parseFloat(document.getElementById('distance').value);
     const seconds = parseFloat(document.getElementById('time').value);
 
-    const mphOutput = document.getElementById('mph');
-    const kmhOutput = document.getElementById('kmh');
+    const primaryOutput = document.getElementById('lapPrimary');
+    const secondaryOutput = document.getElementById('lapSecondary');
 
     if (
         isNaN(distance) ||
@@ -460,87 +709,68 @@ function calculateLapSpeed() {
         distance <= 0 ||
         seconds <= 0
     ) {
-        mphOutput.value = '';
-        kmhOutput.value = '';
+        primaryOutput.value = '';
+        secondaryOutput.value = '';
         return;
     }
 
     const hours = seconds / 3600;
 
-    const mph = distance / hours;
-    const kmh = mph * 1.609344;
+    // Distance is entered in whichever unit is selected, so the raw division
+    // already lands in that unit's speed — MPH for miles, KM/H for kilometres.
+    const primary = distance / hours;
+    const secondary = lapUnit === 'imperial'
+        ? primary * KM_PER_MILE   // MPH -> KM/H
+        : primary / KM_PER_MILE;  // KM/H -> MPH
 
-    mphOutput.value = mph.toFixed(2);
-    kmhOutput.value = kmh.toFixed(2);
+    primaryOutput.value = primary.toFixed(2);
+    secondaryOutput.value = secondary.toFixed(2);
+}
+
+function setLapUnit(unit) {
+    if (unit === lapUnit) return;
+
+    // Convert any distance already entered so the toggle changes the units the
+    // lap is expressed in, not the lap itself — the resulting speed stays the
+    // same physical speed, just relabelled.
+    const distEl = document.getElementById('distance');
+    const d = parseFloat(distEl.value);
+    if (!isNaN(d) && d > 0) {
+        distEl.value = (unit === 'metric' ? d * KM_PER_MILE : d / KM_PER_MILE).toFixed(3);
+    }
+
+    lapUnit = unit;
+    const imperial = unit === 'imperial';
+
+    document.getElementById('lapUnitImperial').classList.toggle('active', imperial);
+    document.getElementById('lapUnitMetric').classList.toggle('active', !imperial);
+    document.getElementById('distanceUnit').textContent = imperial ? 'Miles' : 'Kilometres';
+    document.getElementById('lapPrimaryUnit').textContent = imperial ? 'MPH' : 'KM/H';
+    document.getElementById('lapSecondaryUnit').textContent = imperial ? 'KM/H' : 'MPH';
+
+    calculateLapSpeed();
 }
 
 function clearCalculator() {
     document.getElementById('distance').value = '';
     document.getElementById('time').value = '';
-    document.getElementById('mph').value = '';
-    document.getElementById('kmh').value = '';
+    document.getElementById('lapPrimary').value = '';
+    document.getElementById('lapSecondary').value = '';
 }
+
+// The calculator markup now sits after this script (it moved below the
+// simulator), so the toggle is wired up once the document is parsed.
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('lapUnitImperial').addEventListener('click', () => setLapUnit('imperial'));
+    document.getElementById('lapUnitMetric').addEventListener('click', () => setLapUnit('metric'));
+});
 </script>
 
 </head>
 
 <body>
 
-<div class="calculator-wrapper">
-
-    <div class="lap-header">
-        <h1>Lap Speed Calculator</h1>
-        <h2>Average speed from distance and lap time</h2>
-    </div>
-
-    <div class="lap-card">
-        <div class="lap-param-grid">
-            <div class="lap-param-box">
-                <label for="distance">Distance</label>
-                <input
-                    type="number"
-                    step="0.001"
-                    id="distance"
-                    oninput="calculateLapSpeed()"
-                    placeholder="0.000"
-                >
-                <small>Miles</small>
-            </div>
-
-            <div class="lap-param-box">
-                <label for="time">Lap Time</label>
-                <input
-                    type="number"
-                    step="0.001"
-                    id="time"
-                    oninput="calculateLapSpeed()"
-                    placeholder="0.000"
-                >
-                <small>Seconds</small>
-            </div>
-        </div>
-
-        <div class="lap-metrics">
-            <div class="lap-metric">
-                <div class="lap-metric-label">Average Speed</div>
-                <input type="text" id="mph" class="lap-metric-value" readonly>
-                <span class="lap-metric-unit">MPH</span>
-            </div>
-
-            <div class="lap-metric">
-                <div class="lap-metric-label">Average Speed</div>
-                <input type="text" id="kmh" class="lap-metric-value" readonly>
-                <span class="lap-metric-unit">KM/H</span>
-            </div>
-        </div>
-
-        <button type="button" class="lap-clear-btn" onclick="clearCalculator()">Clear Fields</button>
-    </div>
-
-</div>
-
-
-<hr style="margin: 40px auto; width: 860px; border: none; border-top: 1px solid #ccc;">
+<hr class="section-rule">
 <div id="gravitySimSection">
 
 <div class="container">
@@ -549,48 +779,105 @@ function clearCalculator() {
     <h2>Physics-based pace prediction with calibrated parameters</h2>
   </div>
 
-  <div class="run-upload card" id="runUpload">
-    <div class="run-upload-stack">
-      <input type="text" id="runTitleInput" class="run-title-input" placeholder="Run name (optional)">
-      <span>Drop GPX file(s) here to add another run, or
-        <button type="button" id="gpxBrowseBtn">browse</button>
-      </span>
-    </div>
-    <input type="file" id="gpxFileInput" accept=".gpx" multiple style="display:none;">
-    <div id="uploadStatus"></div>
-  </div>
+  <div class="sim-layout">
 
-  <div class="params card">
-    <h3>Vehicle & Track Parameters</h3>
-    <div class="param-grid">
-      <div class="param-box">
-        <label>Mass (kg)</label>
-        <input type="number" id="mass" value="125.3" min="50" max="160" step="0.1" readonly>
-        <small>Derived: FL+FR+RL+RR from Vehicle Geometry below</small>
-      </div>
-      <div class="param-box">
-        <label>CdA (m²)</label>
-        <input type="number" id="cda" value="0.1125" min="0.06" max="0.20" step="0.001">
-        <small>CFD estimate, real value</small>
-      </div>
-      <div class="param-box">
-        <label>Crr</label>
-        <input type="number" id="crr" value="0.0048" min="0.002" max="0.010" step="0.0001">
-        <small>Pro One tube-type, real value</small>
-      </div>
-      <div class="param-box">
-        <label>μ (friction, all corners)</label>
-        <input type="number" id="mu" value="0.4" min="0.15" max="1.3" step="0.05">
-        <small>Grip (corners + braking), auto-calibrated from Willow/Country</small>
-      </div>
-      <div class="param-box">
-        <label>Brake Confidence (%)</label>
-        <input type="number" id="brakeConfidence" value="90" min="30" max="100" step="1">
-        <small>% of max available (μ×g) brake force actually used</small>
-      </div>
-    </div>
-    <p class="card-note" style="margin-top: 14px; margin-bottom: 0;">† Corners are named and located from GPS heading/curvature (Harewood Speed Hillclimb, run top-to-bottom). Braking point and intensity are no longer fitted per corner — they fall out of a forward (coast) / backward (max-brake) envelope pass entirely driven by vehicle + track parameters. See "Corners" panel below.</p>
+  <!-- ==================== SETUP RAIL (sticky) ==================== -->
+  <aside class="rail">
+    <div class="rail-inner">
 
+    <div class="params card">
+      <h3>Setup</h3>
+
+      <!-- Grip leads: a ±10% change here moves run time ~10× more than any
+           other parameter on this page (see the Sensitivity panel). -->
+      <div class="rail-group">
+        <div class="rail-group-title">Grip &amp; driver <span class="hint">dominant</span></div>
+        <div class="rail-grid">
+          <div class="param-box">
+            <label>μ (friction)</label>
+            <input type="number" id="mu" value="0.4" min="0.15" max="1.3" step="0.05">
+            <span class="conf measured">4-run fit</span>
+          </div>
+          <div class="param-box">
+            <label>Brake conf. (%)</label>
+            <input type="number" id="brakeConfidence" value="90" min="30" max="100" step="1">
+            <span class="conf estimated">assumed</span>
+          </div>
+        </div>
+        <small style="display:block; font-size:10px; color:var(--text-faint); margin-top:8px; line-height:1.45;">μ applies to corners and braking alike, auto-calibrated from Willow/Country. Brake confidence is the share of available μ×g braking actually used.</small>
+      </div>
+
+      <div class="rail-group">
+        <div class="rail-group-title">Mass &amp; balance <span class="hint">kg, loaded</span></div>
+        <div class="rail-grid">
+          <div class="param-box">
+            <label>Corner FL</label>
+            <input type="number" id="cwFL" value="34.3" min="0" max="80" step="0.1">
+          </div>
+          <div class="param-box">
+            <label>Corner FR</label>
+            <input type="number" id="cwFR" value="34.9" min="0" max="80" step="0.1">
+          </div>
+          <div class="param-box">
+            <label>Corner RL</label>
+            <input type="number" id="cwRL" value="27" min="0" max="80" step="0.1">
+          </div>
+          <div class="param-box">
+            <label>Corner RR</label>
+            <input type="number" id="cwRR" value="29.1" min="0" max="80" step="0.1">
+            <span class="conf measured">measured</span>
+          </div>
+        </div>
+        <div class="derived-chip">
+          <span class="dc-label">Total mass</span>
+          <span class="dc-value" id="massChip">—<span class="unit">kg</span></span>
+        </div>
+      </div>
+
+      <div class="rail-group">
+        <div class="rail-group-title">Vehicle geometry <span class="hint">mm</span></div>
+        <div class="rail-grid">
+          <div class="param-box">
+            <label>Wheelbase</label>
+            <input type="number" id="wheelbase" value="1345" min="800" max="2000" step="1">
+            <span class="conf unverified">unconfirmed</span>
+          </div>
+          <div class="param-box">
+            <label>CofG height</label>
+            <input type="number" id="cgHeight" value="300" min="150" max="600" step="5">
+            <span class="conf estimated">estimate</span>
+          </div>
+          <div class="param-box">
+            <label>Track front</label>
+            <input type="number" id="trackF" value="1060" min="600" max="1600" step="1">
+          </div>
+          <div class="param-box">
+            <label>Track rear</label>
+            <input type="number" id="trackR" value="1060" min="600" max="1600" step="1">
+            <span class="conf measured">measured</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail-group">
+        <div class="rail-group-title">Aero &amp; rolling</div>
+        <div class="rail-grid">
+          <div class="param-box">
+            <label>CdA (m²)</label>
+            <input type="number" id="cda" value="0.1125" min="0.06" max="0.20" step="0.001">
+            <span class="conf estimated">CFD</span>
+          </div>
+          <div class="param-box">
+            <label>Crr</label>
+            <input type="number" id="crr" value="0.0048" min="0.002" max="0.010" step="0.0001">
+            <span class="conf measured">tyre data</span>
+          </div>
+        </div>
+      </div>
+
+      <details class="rail-disclosure">
+        <summary>Conditions<span class="hint" id="windSummary">still air</span></summary>
+        <div class="disclosure-body">
     <div class="wind-panel">
       <div class="wind-header">
         <h3 style="margin:0;">Wind</h3>
@@ -653,49 +940,118 @@ function clearCalculator() {
         </div>
       </div>
     </div>
-  </div>
+        </div>
+      </details>
 
-  <div class="geometry card">
-    <h3>Vehicle Geometry</h3>
-    <p class="card-note">Corner weights + wheelbase derive mass and CofG position directly — no guessing there. CofG height is the one figure still estimated; the rollover-margin check below shows how much that estimate actually matters to the result.</p>
-    <div class="param-grid">
-      <div class="param-box">
-        <label>Corner Weight FL (kg)</label>
-        <input type="number" id="cwFL" value="34.3" min="0" max="80" step="0.1">
+      <details class="rail-disclosure">
+        <summary>Runs<span class="hint" id="runCountHint">—</span></summary>
+        <div class="disclosure-body">
+          <div class="run-upload" id="runUpload">
+            <div class="run-upload-stack">
+              <input type="text" id="runTitleInput" class="run-title-input" placeholder="Run name (optional)">
+              <span>Drop GPX file(s) here, or
+                <button type="button" id="gpxBrowseBtn">browse</button>
+              </span>
+            </div>
+            <input type="file" id="gpxFileInput" accept=".gpx" multiple style="display:none;">
+            <div id="uploadStatus"></div>
+          </div>
+          <small style="display:block; font-size:10px; color:var(--text-faint); margin-top:10px; line-height:1.45;">Added runs are session-only and are lost on refresh. Toggle individual runs in the chart legend — hiding one also removes it from the actual-speed comparisons below.</small>
+        </div>
+      </details>
+    </div>
+
+    </div>
+  </aside>
+
+  <!-- ==================== READOUT ==================== -->
+  <div class="readout">
+
+  <!-- A · headline result -->
+  <div class="result-band">
+    <div>
+      <div class="rb-label">Run Time (predicted)</div>
+      <div class="rb-hero-value"><span id="runTime">—</span><span class="unit">s</span></div>
+      <div class="range-track">
+        <div class="range-band" style="left:57.1%; width:14.3%;"></div>
+        <div class="range-marker" id="timeMarker" style="left:0;"></div>
       </div>
-      <div class="param-box">
-        <label>Corner Weight FR (kg)</label>
-        <input type="number" id="cwFR" value="34.9" min="0" max="80" step="0.1">
+      <div class="range-scale"><span>72s</span><span>real runs 88–92s</span><span>100s</span></div>
+      <div id="timeDelta"></div>
+    </div>
+    <div>
+      <div class="rb-label">Finish Speed</div>
+      <div class="rb-value"><span id="finishSpeed">—</span><span class="unit">km/h</span></div>
+      <div class="rb-sub">Recorded, interpolated at the real finish line (d=1078m)</div>
+    </div>
+    <div>
+      <div class="rb-label">Peak Speed</div>
+      <div class="rb-pair">
+        <div>
+          <div class="rb-value"><span id="maxSpeedPred">—</span></div>
+          <div class="rb-sub">predicted</div>
+        </div>
+        <div>
+          <div class="rb-value" style="color:var(--text-muted);"><span id="maxSpeed">—</span></div>
+          <div class="rb-sub">actual</div>
+        </div>
       </div>
-      <div class="param-box">
-        <label>Corner Weight RL (kg)</label>
-        <input type="number" id="cwRL" value="27" min="0" max="80" step="0.1">
-      </div>
-      <div class="param-box">
-        <label>Corner Weight RR (kg)</label>
-        <input type="number" id="cwRR" value="29.1" min="0" max="80" step="0.1">
-        <small>All four: fully loaded, static, measured</small>
-      </div>
-      <div class="param-box">
-        <label>Wheelbase (mm)</label>
-        <input type="number" id="wheelbase" value="1345" min="800" max="2000" step="1">
-        <small>Unconfirmed — flagged for double-check</small>
-      </div>
-      <div class="param-box">
-        <label>Track Width Front (mm)</label>
-        <input type="number" id="trackF" value="1060" min="600" max="1600" step="1">
-      </div>
-      <div class="param-box">
-        <label>Track Width Rear (mm)</label>
-        <input type="number" id="trackR" value="1060" min="600" max="1600" step="1">
-      </div>
-      <div class="param-box">
-        <label>CofG Height (mm)</label>
-        <input type="number" id="cgHeight" value="300" min="150" max="600" step="5">
-        <small>Estimate, not measured — see margin check</small>
+      <div class="rb-sub" style="margin-top:8px;">km/h, across visible runs</div>
+    </div>
+    <div>
+      <div class="rb-label">Forces @ Peak</div>
+      <div class="rb-pair">
+        <div>
+          <div class="rb-value"><span id="dragForce">—</span></div>
+          <div class="rb-sub">drag, N</div>
+        </div>
+        <div>
+          <div class="rb-value" style="color:var(--text-muted);"><span id="rrForce">—</span></div>
+          <div class="rb-sub">rolling, N</div>
+        </div>
       </div>
     </div>
+  </div>
+
+  <!-- B + C · the tradeoff surface -->
+  <div class="tradeoff-pair">
+    <div class="sensitivity card">
+      <h3>Sensitivity — where effort pays</h3>
+      <p class="card-note">Each parameter varied ±10% independently, run time re-integrated. Bar spans the resulting range; left of the centre line is faster.</p>
+      <div id="sensitivityOutput"></div>
+    </div>
+
+    <div class="energy card">
+      <h3>Energy Budget</h3>
+      <p class="card-note">Gravitational energy released to the finish line, and where it goes. The thin bar beneath is the calibrated baseline for comparison.</p>
+      <div id="energyBudget"></div>
+    </div>
+  </div>
+
+  <div class="chart-container card">
+    <canvas id="paceChart"></canvas>
+  </div>
+
+  <!-- Derived geometry sits here rather than in the rail: it's output, and the
+       rollover-vs-slide margin is specifically a validity check on the corner
+       model immediately below it. -->
+  <div class="geometry card">
+    <h3>Derived Geometry &amp; Rollover Margin</h3>
+    <p class="card-note">Corner weights and wheelbase give mass and CofG position directly. CofG height is the one figure still estimated — the margin check shows how much that estimate actually matters to the corner speeds below.</p>
     <div id="geometryOutput" class="geometry-output"></div>
+  </div>
+
+  <div class="corners card">
+    <h3>Corners</h3>
+    <p class="card-note">Sorted by how far the prediction sits from recorded reality, not by distance along the course. Location, direction and radius come from GPS heading/curvature, not speed; grip limit and predicted apex come from the forward/backward envelope pass. Actual apex is a validation reference and feeds nothing back into the model. Click a row for load transfer.</p>
+    <div id="cornerAnalysis"></div>
+    <p class="disclaimer-note">⚠ Grip limits, apex speeds and braking figures above are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
+  </div>
+
+  <div class="diagnostics card">
+    <h3>Model vs Reality by Section</h3>
+    <p class="card-note">RMSE = Root Mean Square Error, worst section first. Lower = better fit. Δ = Actual – Predicted (positive = model is conservative).</p>
+    <div id="diagnosticsOutput"></div>
   </div>
 
   <div class="map-panel card">
@@ -706,79 +1062,7 @@ function clearCalculator() {
     <p class="disclaimer-note">⚠ Corner, apex-speed and braking-zone markers are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
   </div>
 
-  <div class="chart-container card">
-    <canvas id="paceChart"></canvas>
   </div>
-
-  <div class="metrics">
-    <div class="metric">
-      <div class="metric-label">Max Speed (Actual)</div>
-      <div class="metric-value" id="maxSpeed">—</div>
-      <div class="metric-unit">km/h</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Max Speed (Predicted)</div>
-      <div class="metric-value" id="maxSpeedPred">—</div>
-      <div class="metric-unit">km/h</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Run Time (Pred)</div>
-      <div class="metric-value" id="runTime">—</div>
-      <div class="metric-unit">sec</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Drag @ Peak</div>
-      <div class="metric-value" id="dragForce">—</div>
-      <div class="metric-unit">N</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Rolling Resistance</div>
-      <div class="metric-value" id="rrForce">—</div>
-      <div class="metric-unit">N</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Finish Speed (Avg)</div>
-      <div class="metric-value" id="finishSpeed">—</div>
-      <div class="metric-unit">km/h</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Energy Available</div>
-      <div class="metric-value" id="energyAvailable">—</div>
-      <div class="metric-unit">kJ (gravity, to finish)</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Energy: Rolling Resistance</div>
-      <div class="metric-value" id="energyRR">—</div>
-      <div class="metric-unit">kJ</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Energy: Drag</div>
-      <div class="metric-value" id="energyDrag">—</div>
-      <div class="metric-unit">kJ</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Energy: Cornering</div>
-      <div class="metric-value" id="energyCornering">—</div>
-      <div class="metric-unit">kJ</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Energy: Braking</div>
-      <div class="metric-value" id="energyBraking">—</div>
-      <div class="metric-unit">kJ</div>
-    </div>
-  </div>
-
-  <div class="diagnostics card">
-    <h3>Model vs Reality by Section</h3>
-    <p class="card-note">RMSE = Root Mean Square Error. Lower = better fit. Δ = Actual – Predicted (positive = model is conservative)</p>
-    <div id="diagnosticsOutput"></div>
-  </div>
-
-  <div class="corners card">
-    <h3>Corners</h3>
-    <p class="card-note">Location, direction and radius come from GPS heading/curvature, not speed. Grip limit and predicted apex speed come from a forward (coast) / backward (max-brake) envelope pass — see main description above. Actual apex speed is shown purely as a validation reference. Load transfer is exact rigid-body statics (weight × lateral g × CofG height ÷ track) at the predicted apex — it shows how much load moves to the outside tyres, not how much grip that costs; no tyre load-sensitivity curve is assumed, so don't read a speed penalty into it.</p>
-    <div id="cornerAnalysis"></div>
-    <p class="disclaimer-note">⚠ Grip limits, apex speeds and braking figures below are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
   </div>
 
 </div>
@@ -990,7 +1274,10 @@ function getGeometry() {
 
 function getParams() {
   const geo = getGeometry();
-  document.getElementById('mass').value = geo.mass.toFixed(1);
+  // Mass is derived from the four corner weights, so it's a readout, not an
+  // input — it now lives as a chip directly under them in the rail.
+  const chip = document.getElementById('massChip');
+  if (chip) chip.innerHTML = `${geo.mass.toFixed(1)}<span class="unit">kg</span>`;
   return {
     mass: geo.mass,
     aRoll: geo.aRoll,
@@ -1824,11 +2111,21 @@ function predictedSpeedAt(predicted, d) {
   return predicted[predicted.length-1].y;
 }
 
+// Held so the re-centre control can always return to the framing the map
+// opened with, rather than to whatever Leaflet's current bounds happen to be.
+let routeHomeBounds = null;
+
+function recentreRouteMap() {
+  if (!routeMap || !routeHomeBounds) return;
+  routeMap.fitBounds(routeHomeBounds);
+}
+
 function initRouteMap() {
   if (typeof L === 'undefined') return; // no internet / tiles library didn't load — rest of the app still works
   const bounds = L.latLngBounds(routePoints.map(p => [p.lat, p.lon]));
+  routeHomeBounds = bounds.pad(0.12);
   routeMap = L.map('routeMap', { scrollWheelZoom: false });
-  routeMap.fitBounds(bounds.pad(0.12));
+  routeMap.fitBounds(routeHomeBounds);
 
   const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
@@ -1872,6 +2169,21 @@ function initRouteMap() {
     return div;
   };
   overlayControl.addTo(routeMap);
+
+  // Re-centre: the map is pannable/zoomable, so an accidental drag can lose the
+  // course entirely. Returns to the exact opening framing (routeHomeBounds).
+  const recentreControl = L.control({ position: 'topleft' });
+  recentreControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control map-recentre');
+    L.DomEvent.disableClickPropagation(div);
+    const btn = L.DomUtil.create('button', '', div);
+    btn.type = 'button';
+    btn.title = 'Re-centre the map on the full course';
+    btn.innerHTML = '<span aria-hidden="true">⤢</span> Re-centre';
+    btn.addEventListener('click', recentreRouteMap);
+    return div;
+  };
+  recentreControl.addTo(routeMap);
 
   setTimeout(() => routeMap.invalidateSize(), 200); // container may not have had final layout size at init
 }
@@ -1987,6 +2299,300 @@ function renderGeometryPanel(params) {
     <div><div class="geometry-stat-label">Grip Limit (current μ)</div><div class="geometry-stat-value">${(aGrip/g).toFixed(2)}<span class="unit">g</span></div></div>
     <div class="geometry-status ${statusClass}">${statusText}</div>
   `;
+}
+
+// ===================== READOUT RENDERERS =====================
+
+// Baseline snapshot, captured once after the calibrated defaults are applied
+// at load. Everything the user changes afterwards is reported as a delta
+// against this, which is what turns the page from a readout into a design tool.
+let BASELINE = null;
+
+// Real-run window from the five recorded GPX runs (87-92s). The range bar in
+// the result band is scaled 72-100s; these constants keep the CSS band
+// (left:57.1%, width:14.3%) and the marker maths agreeing with each other.
+const TIME_SCALE_MIN = 72, TIME_SCALE_MAX = 100;
+const REAL_RUN_MIN = 88, REAL_RUN_MAX = 92;
+
+function renderResultBand(runTime) {
+  const pct = (runTime - TIME_SCALE_MIN) / (TIME_SCALE_MAX - TIME_SCALE_MIN) * 100;
+  document.getElementById('timeMarker').style.left = Math.max(0, Math.min(100, pct)) + '%';
+
+  const el = document.getElementById('timeDelta');
+  if (!BASELINE) { el.innerHTML = ''; return; }
+  const d = runTime - BASELINE.time;
+  if (Math.abs(d) < 0.05) {
+    el.innerHTML = `<span class="delta-chip same">at calibrated baseline</span>`;
+    return;
+  }
+  const cls = d < 0 ? 'faster' : 'slower';
+  const word = d < 0 ? 'faster' : 'slower';
+  el.innerHTML = `<span class="delta-chip ${cls}">${d > 0 ? '+' : ''}${d.toFixed(2)}s ${word} than baseline
+    <button type="button" id="resetBaselineBtn" title="Restore the calibrated defaults">reset</button></span>`;
+  document.getElementById('resetBaselineBtn').addEventListener('click', restoreBaseline);
+}
+
+function restoreBaseline() {
+  if (!BASELINE) return;
+  Object.entries(BASELINE.inputs).forEach(([id, v]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+  });
+  updateChart();
+}
+
+// B · Sensitivity. Each parameter is varied ±10% in isolation and the run time
+// re-integrated with the existing predictor — no new physics, just the model
+// asked the same question 10 times. ~40ms for the full set, but it runs on
+// every keystroke via updateChart(), so it's debounced below.
+const SENSITIVITY_VARS = [
+  { key: 'mu',              name: 'Grip μ',      fmt: v => v.toFixed(2) },
+  { key: 'mass',            name: 'Mass',        fmt: v => v.toFixed(1) + 'kg', also: ['frontMass', 'rearMass'] },
+  { key: 'crr',             name: 'Crr',         fmt: v => v.toFixed(4) },
+  { key: 'cda',             name: 'CdA',         fmt: v => v.toFixed(3) + 'm²' },
+  { key: 'brakeConfidence', name: 'Brake conf.', fmt: v => v.toFixed(0) + '%' }
+];
+
+// updateChart() fires on every keystroke, and each sensitivity pass costs ~10
+// extra model evaluations on top of the chart and map redraw. Debouncing keeps
+// typing responsive; the panel catches up once input settles.
+let sensitivityTimer = null;
+function scheduleSensitivity(params, baseTime) {
+  clearTimeout(sensitivityTimer);
+  sensitivityTimer = setTimeout(() => renderSensitivity(params, baseTime), 140);
+}
+
+function renderSensitivity(params, baseTime) {
+  const el = document.getElementById('sensitivityOutput');
+  if (!el) return;
+  const FRAC = 0.10;
+
+  const rows = SENSITIVITY_VARS.map(v => {
+    const base = params[v.key];
+    const at = (scale) => {
+      const p = Object.assign({}, params);
+      p[v.key] = base * scale;
+      // Mass appears as three coupled fields; scaling one without the others
+      // would leave the load-transfer maths internally inconsistent.
+      if (v.also) v.also.forEach(k => { p[k] = params[k] * scale; });
+      return predictPaceWithDiagnostics(p).time;
+    };
+    const lo = at(1 - FRAC) - baseTime;
+    const hi = at(1 + FRAC) - baseTime;
+    return { ...v, base, lo: Math.min(lo, hi), hi: Math.max(lo, hi), span: Math.abs(hi - lo) };
+  }).sort((a, b) => b.span - a.span);
+
+  // Symmetric-ish axis sized to whatever the current worst case is, with a
+  // floor so a near-flat set of bars doesn't get magnified into false drama.
+  const extent = Math.max(0.5, ...rows.map(r => Math.max(Math.abs(r.lo), Math.abs(r.hi))));
+  const axMin = -extent * 1.05, axMax = extent * 1.05;
+  const pos = x => (x - axMin) / (axMax - axMin) * 100;
+  const zeroPct = pos(0);
+  const dominant = rows[0].span;
+
+  const body = rows.map(r => {
+    const left = pos(r.lo), right = pos(r.hi);
+    // Sub-pixel bars vanish entirely; give near-zero responses a visible stub
+    // so "this input does almost nothing" reads as a result, not a render bug.
+    const width = Math.max(right - left, 0.8);
+    const isDom = r.span >= dominant * 0.85;
+    return `<div class="sens-row">
+      <div class="sens-name">${r.name}<span>${r.fmt(r.base)}</span></div>
+      <div class="sens-track">
+        <div class="sens-zero" style="left:${zeroPct}%;"></div>
+        <div class="sens-bar${isDom ? ' dominant' : ''}" style="left:${left}%; width:${width}%;"></div>
+      </div>
+      <div class="sens-val">${r.lo > 0 ? '+' : ''}${r.lo.toFixed(2)} / ${r.hi > 0 ? '+' : ''}<b>${r.hi.toFixed(2)}</b>s</div>
+    </div>`;
+  }).join('');
+
+  const top = rows[0], next = rows[1];
+  const ratio = next && next.span > 0.001 ? (top.span / next.span) : null;
+  const lead = ratio && ratio >= 1.8
+    ? `<strong>${top.name}</strong> moves run time ${ratio.toFixed(1)}× more than the next parameter (${next.name}). Effort spent anywhere else is second-order.`
+    : `No single parameter dominates at these settings — ${top.name} leads, but only marginally.`;
+
+  el.innerHTML = `<div class="sens-rows">${body}</div>
+    <div class="sens-axis">
+      <div></div>
+      <div class="sens-axis-inner"><span>${axMin.toFixed(1)}s faster</span><span>0</span><span>+${axMax.toFixed(1)}s slower</span></div>
+      <div></div>
+    </div>
+    <p class="sens-lead">${lead}</p>`;
+}
+
+// C · Energy budget. The five figures predictPaceWithDiagnostics() already
+// returns are one quantity split five ways — as a bar, the ratio between them
+// is the point, which five separate tiles could never show.
+const ENERGY_SEGMENTS = [
+  { key: 'cornering', label: 'Cornering', color: '#b4531f' },
+  { key: 'drag',      label: 'Drag',      color: '#6d7a8c' },
+  { key: 'rr',        label: 'Rolling',   color: '#cf9a3e' },
+  { key: 'braking',   label: 'Braking',   color: '#c0392b' },
+  { key: 'kinetic',   label: 'KE at line',color: '#2f7dd1' }
+];
+
+function energySplit(result) {
+  const avail = result.energyAvailable / 1000;
+  const parts = {
+    cornering: result.energyCornering / 1000,
+    drag: result.energyDrag / 1000,
+    rr: result.energyRR / 1000,
+    braking: result.energyBraking / 1000
+  };
+  // Whatever gravity released but the resisting terms didn't absorb is still
+  // kinetic energy — the car is moving when it crosses the line, not stopped.
+  parts.kinetic = Math.max(0, avail - parts.cornering - parts.drag - parts.rr - parts.braking);
+  return { avail, parts };
+}
+
+function renderEnergyBudget(result) {
+  const el = document.getElementById('energyBudget');
+  if (!el) return;
+  const { avail, parts } = energySplit(result);
+  const total = Object.values(parts).reduce((a, b) => a + b, 0) || 1;
+
+  const seg = (s, showLabel) => {
+    const kJ = parts[s.key];
+    const pct = kJ / total * 100;
+    const text = showLabel && pct > 13 ? `${s.label} ${kJ.toFixed(1)}` : (showLabel && pct > 6 ? kJ.toFixed(1) : '');
+    return `<div style="width:${pct}%; background:${s.color};">${text}</div>`;
+  };
+
+  let baselineBar = '';
+  if (BASELINE) {
+    const b = BASELINE.energy;
+    const bTotal = Object.values(b.parts).reduce((a, x) => a + x, 0) || 1;
+    baselineBar = `<div class="ebar-baseline" title="Calibrated baseline for comparison">` +
+      ENERGY_SEGMENTS.map(s => `<div style="width:${b.parts[s.key] / bTotal * 100}%; background:${s.color};"></div>`).join('') +
+      `</div>`;
+  }
+
+  const cornerShare = parts.cornering / total * 100;
+  const dragShare = parts.drag / total * 100;
+
+  el.innerHTML = `
+    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:8px;">
+      <span style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted);">Available</span>
+      <span style="font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:700;">${avail.toFixed(1)}<span style="font-size:11px; color:var(--text-muted); margin-left:3px;">kJ</span></span>
+    </div>
+    <div class="ebar">${ENERGY_SEGMENTS.map(s => seg(s, true)).join('')}</div>
+    ${baselineBar}
+    <div class="ekey">${ENERGY_SEGMENTS.map(s =>
+      `<span><i style="background:${s.color};"></i>${s.label} ${parts[s.key].toFixed(1)} kJ</span>`).join('')}</div>
+    <p class="sens-lead">Cornering scrub takes <strong>${cornerShare.toFixed(0)}%</strong> of everything gravity releases — ${(cornerShare / Math.max(dragShare, 0.01)).toFixed(1)}× what aero drag costs.</p>`;
+}
+
+// E · Corner table, ranked by |predicted − actual| so the corners the model
+// gets wrong sit at the top instead of being buried in course order.
+function renderCornerTable(zoneState) {
+  const rows = zoneState.map((z, i) => {
+    const zone = cornerZones[i];
+    const delta = z.recordedApexSpeed !== null ? z.predictedApex - z.recordedApexSpeed : null;
+    return { z, zone, i, delta, rank: delta === null ? -1 : Math.abs(delta) };
+  }).sort((a, b) => b.rank - a.rank);
+
+  const maxAbs = Math.max(1, ...rows.map(r => r.rank));
+
+  const body = rows.map(r => {
+    const { z, zone, i, delta } = r;
+    const color = CORNER_COLORS[i % CORNER_COLORS.length];
+    const spread = zone.radiusRunCount > 1 ? zone.radiusSpread : null;
+    // A radius fit that swings this wide across runs is GPS noise, not
+    // geometry — Willow's 28-102m is a documented weakness and should look it.
+    const noisy = spread && (spread[1] - spread[0]) > zone.radius * 1.2;
+    const radiusCell = zone.radius
+      ? `${zone.radius.toFixed(0)}m${spread ? `<div class="row-meta"${noisy ? ' style="color:#b9770e;"' : ''}>${spread[0].toFixed(0)}–${spread[1].toFixed(0)}${noisy ? ' ⚠' : ''}</div>` : ''}`
+      : 'n/a';
+
+    let deltaCell = '<span style="color:var(--text-faint); font-size:10.5px;">no measured apex</span>';
+    if (delta !== null) {
+      const mag = Math.abs(delta) / maxAbs * 50;
+      const sev = Math.abs(delta) > 10 ? 'var(--danger)' : (Math.abs(delta) > 4 ? '#b9770e' : 'var(--success)');
+      const bar = delta >= 0
+        ? `<i style="left:50%; width:${mag}%; background:${sev};"></i>`
+        : `<i style="right:50%; width:${mag}%; background:${sev};"></i>`;
+      deltaCell = `<div class="dcell">
+        <div class="dbar"><span class="dzero"></span>${bar}</div>
+        <span class="dval" style="color:${sev};">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>
+      </div>`;
+    }
+
+    const brakeCell = z.brakePointDist !== null
+      ? `<span class="pill warn">${z.brakeDistance.toFixed(0)}m out</span>`
+      : `<span class="pill info">none</span>`;
+
+    const lt = z.loadTransfer;
+    const liftWarn = lt && (lt.frontInnerLoad < 0 || lt.rearInnerLoad < 0);
+    const detail = lt
+      ? `Load transfer @ apex (<b>${(lt.ay / g).toFixed(2)}g</b> lateral): front outer <b>${lt.frontOuterLoad.toFixed(1)}kg</b> / inner <b>${lt.frontInnerLoad.toFixed(1)}kg</b> (${lt.frontPct >= 0 ? '+' : ''}${lt.frontPct.toFixed(0)}%) · rear outer <b>${lt.rearOuterLoad.toFixed(1)}kg</b> / inner <b>${lt.rearInnerLoad.toFixed(1)}kg</b> (${lt.rearPct >= 0 ? '+' : ''}${lt.rearPct.toFixed(0)}%).${liftWarn ? ' <span style="color:var(--danger);">Inner load goes negative — the geometry predicts wheel lift, not just underload.</span>' : ''}<br>Exact rigid-body statics (weight × lateral g × CofG height ÷ track). It shows how much load moves to the outside tyres, not how much grip that costs — no tyre load-sensitivity curve is assumed, so don't read a speed penalty into it.${z.brakePointDist !== null ? `<br>Braking: from ${z.brakeDistance.toFixed(0)}m out, up to ${z.maxBrakeDecel.toFixed(2)} m/s² (${(z.maxBrakeDecel / g).toFixed(2)}g).` : '<br>Braking: none needed — carried in on grip, gravity and drag alone.'}`
+      : 'No radius fit, so no load-transfer figure for this corner.';
+
+    return `<tr class="expandable" data-corner="${i}">
+      <td>
+        <div class="row-name"><span class="dot" style="background:${color};"></span>${zone.name}</div>
+        <div class="row-meta">${zone.direction === 'left' ? 'left' : 'right'} · ${zone.d0}–${zone.d1}m</div>
+      </td>
+      <td class="num">${radiusCell}</td>
+      <td class="num">${z.vLimit.toFixed(1)}</td>
+      <td class="num">${z.predictedApex.toFixed(1)}</td>
+      <td class="num">${z.recordedApexSpeed !== null ? z.recordedApexSpeed.toFixed(1) : '—'}</td>
+      <td>${deltaCell}</td>
+      <td>${brakeCell}</td>
+    </tr>
+    <tr class="detail-row" data-detail="${i}" style="display:none;">
+      <td colspan="7"><div class="detail-body">${detail}</div></td>
+    </tr>`;
+  }).join('');
+
+  const el = document.getElementById('cornerAnalysis');
+  el.innerHTML = `<div class="table-scroll"><table class="data-table">
+    <thead><tr>
+      <th>Corner</th><th>Radius</th><th>Grip limit</th><th>Predicted</th><th>Actual</th>
+      <th style="width:150px;">Δ pred − actual</th><th>Braking</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>`;
+
+  el.querySelectorAll('tr.expandable').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const d = el.querySelector(`tr[data-detail="${tr.dataset.corner}"]`);
+      if (d) d.style.display = d.style.display === 'none' ? '' : 'none';
+    });
+  });
+}
+
+// F · Model fidelity, worst section first, with RMSE encoded as bar length as
+// well as digits — 16.27 km/h and 4.01 km/h previously rendered identically.
+function renderFidelity(diagnostics) {
+  const rows = diagnostics.slice().sort((a, b) => b.rmse - a.rmse);
+  const worst = Math.max(1, ...rows.map(r => r.rmse));
+
+  const body = rows.map(d => {
+    const sev = d.rmse > 12 ? ['var(--danger)', 'bad', 'poor']
+              : d.rmse > 8  ? ['#b9770e', 'warn', 'fair']
+              : ['var(--success)', 'good', 'good'];
+    return `<tr>
+      <td><div class="row-name" style="font-size:12.5px;">${d.label}</div></td>
+      <td>
+        <div class="dcell">
+          <div class="rmse-bar"><i style="width:${d.rmse / worst * 100}%; background:${sev[0]};"></i></div>
+          <span class="dval">${d.rmse.toFixed(2)}</span>
+        </div>
+      </td>
+      <td class="num">${d.delta_mean >= 0 ? '+' : ''}${d.delta_mean.toFixed(1)}</td>
+      <td class="num" style="color:var(--text-muted);">${d.pred_mean.toFixed(1)} / ${d.actual_mean.toFixed(1)}</td>
+      <td><span class="pill ${sev[1]}">${sev[2]}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('diagnosticsOutput').innerHTML = `<div class="table-scroll"><table class="data-table">
+    <thead><tr>
+      <th>Section</th><th style="width:200px;">RMSE (km/h)</th><th>Δ mean</th>
+      <th>Pred / actual mean</th><th>Fit</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>`;
 }
 
 function updateChart() {
@@ -2111,67 +2717,17 @@ function updateChart() {
   document.getElementById('dragForce').textContent = (0.5 * params.rho * params.cda * peakV_ms * peakV_ms).toFixed(2);
   document.getElementById('rrForce').textContent = (params.crr * params.mass * g).toFixed(2);
   document.getElementById('finishSpeed').textContent = finishSpeed.toFixed(1);
-  document.getElementById('energyAvailable').textContent = (result.energyAvailable / 1000).toFixed(1);
-  document.getElementById('energyRR').textContent = (result.energyRR / 1000).toFixed(1);
-  document.getElementById('energyDrag').textContent = (result.energyDrag / 1000).toFixed(1);
-  document.getElementById('energyCornering').textContent = (result.energyCornering / 1000).toFixed(1);
-  document.getElementById('energyBraking').textContent = (result.energyBraking / 1000).toFixed(1);
-  
-  // Read-only diagnostics: physical corner limit and predicted apex speed come
-  // entirely from vehicle+track params (see predictPaceWithDiagnostics);
-  // recorded apex speed is shown purely as a validation reference and feeds
-  // nothing back into the model.
-  document.getElementById('cornerAnalysis').innerHTML = zoneState.map((z, i) => {
-    const zone = cornerZones[i];
-    const color = CORNER_COLORS[i % CORNER_COLORS.length];
-    const radiusStr = zone.radius
-      ? (zone.radiusRunCount > 1
-          ? `r≈${zone.radius.toFixed(0)}m (${zone.radiusSpread[0].toFixed(0)}-${zone.radiusSpread[1].toFixed(0)}m across ${zone.radiusRunCount} runs)`
-          : `r≈${zone.radius.toFixed(0)}m`)
-      : 'r n/a';
-    const dirStr = zone.direction === 'left' ? 'left-hander' : 'right-hander';
-    const refStr = z.recordedApexSpeed !== null
-      ? `actual: ${z.recordedApexSpeed.toFixed(1)} km/h${zone.recordedApexSpeedRunCount > 1 ? ` (median of ${zone.recordedApexSpeedRunCount} runs)` : ''}`
-      : `actual: no measured apex (car wasn't near the limit here)`;
-    const brakeStr = z.brakePointDist !== null
-      ? `braking from ${z.brakeDistance.toFixed(0)}m out, up to ${z.maxBrakeDecel.toFixed(2)} m/s² (${(z.maxBrakeDecel/g).toFixed(2)}g)`
-      : `no straight-line braking needed — carried in on grip/gravity/drag alone`;
-    const lt = z.loadTransfer;
-    const loadTransferStr = lt
-      ? `load transfer @ apex (${(lt.ay/g).toFixed(2)}g): front outer ${lt.frontOuterLoad.toFixed(1)}kg / inner ${lt.frontInnerLoad.toFixed(1)}kg (${lt.frontPct >= 0 ? '+' : ''}${lt.frontPct.toFixed(0)}%) · rear outer ${lt.rearOuterLoad.toFixed(1)}kg / inner ${lt.rearInnerLoad.toFixed(1)}kg (${lt.rearPct >= 0 ? '+' : ''}${lt.rearPct.toFixed(0)}%)${(lt.frontInnerLoad < 0 || lt.rearInnerLoad < 0) ? ' — inner load goes negative: geometry predicts wheel lift, not just underload' : ''}`
-      : 'load transfer: n/a (no radius fit)';
-    return `
-    <div class="corner-box" style="border-left-color: ${color};">
-      <div class="corner-title">${zone.name}</div>
-      <div class="corner-meta">${dirStr}, ${radiusStr} (${zone.d0}–${zone.d1}m)</div>
-      <div class="corner-stats">
-        <div>
-          <div class="corner-stat-label">Grip limit</div>
-          <div class="corner-stat-value">${z.vLimit.toFixed(1)}<span class="unit">km/h</span></div>
-        </div>
-        <div>
-          <div class="corner-stat-label">Predicted apex</div>
-          <div class="corner-stat-value">${z.predictedApex.toFixed(1)}<span class="unit">km/h</span></div>
-        </div>
-      </div>
-      <small class="corner-footnote">${refStr} · ${brakeStr}</small>
-      <small class="corner-footnote">${loadTransferStr}</small>
-    </div>`;
-  }).join('');
-  
-  let diagHtml = '';
-  for (let d of diagnostics) {
-    const gapClass = Math.abs(d.delta_mean) > 5 ? 'diag-gap' : '';
-    const sign_mean = d.delta_mean >= 0 ? '+' : '';
-    const sign_max = d.delta_max >= 0 ? '+' : '';
-    diagHtml += `<div class="diag-section">
-      <strong>${d.label}</strong><br>
-      Pred: ${d.pred_mean.toFixed(1)} km/h mean, ${d.pred_max.toFixed(1)} km/h max<br>
-      Actual: ${d.actual_mean.toFixed(1)} km/h mean, ${d.actual_max.toFixed(1)} km/h max<br>
-      <span class="${gapClass}">Δ mean: ${sign_mean}${d.delta_mean.toFixed(1)} km/h, Δ max: ${sign_max}${d.delta_max.toFixed(1)} km/h</span> | RMSE: ${d.rmse.toFixed(2)} km/h
-    </div>`;
-  }
-  document.getElementById('diagnosticsOutput').innerHTML = diagHtml;
+
+  renderResultBand(runTime);
+  renderEnergyBudget(result);
+  scheduleSensitivity(params, runTime);
+
+  // Corner limit and predicted apex come entirely from vehicle+track params
+  // (see predictPaceWithDiagnostics); recorded apex is a validation reference
+  // only and feeds nothing back into the model.
+  renderCornerTable(zoneState);
+  renderFidelity(diagnostics);
+  refreshRailSummaries();
 
   refreshRouteMap(predicted, zoneState);
 }
@@ -2286,8 +2842,110 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   updateChart();
+
+  // Baseline is captured after the first render, so it reflects the calibrated
+  // defaults (including CALIBRATED_MU, which is computed at load rather than
+  // hard-coded in the markup). Everything the user changes reads as a delta
+  // against this, and "reset" restores exactly these values.
+  const p0 = getParams();
+  const r0 = predictPaceWithDiagnostics(p0);
+  BASELINE = {
+    time: r0.time,
+    energy: energySplit(r0),
+    inputs: ['mu', 'brakeConfidence', 'cwFL', 'cwFR', 'cwRL', 'cwRR',
+             'wheelbase', 'trackF', 'trackR', 'cgHeight', 'cda', 'crr']
+      .reduce((acc, id) => { acc[id] = document.getElementById(id).value; return acc; }, {})
+  };
+  renderResultBand(r0.time);
+  renderEnergyBudget(r0);
+
+  refreshRailSummaries();
 });
+
+// Keeps the collapsed disclosure summaries honest about what's inside them,
+// so wind and run count stay visible without opening either panel.
+function refreshRailSummaries() {
+  const windEl = document.getElementById('windSummary');
+  if (windEl) {
+    const spd = windMode === 'actual'
+      ? parseFloat(document.getElementById('windSpeedActual').value)
+      : parseFloat(document.getElementById('windSpeed').value);
+    const dir = windMode === 'actual' ? actualWindDir : parseFloat(document.getElementById('windDir').value);
+    windEl.textContent = !spd ? 'still air' : `${spd.toFixed(0)} km/h from ${degToCompass(dir)}`;
+  }
+  const runEl = document.getElementById('runCountHint');
+  if (runEl) {
+    const shown = runVisible.filter(Boolean).length;
+    runEl.textContent = shown === runsData.length
+      ? `${runsData.length} loaded`
+      : `${shown} of ${runsData.length} shown`;
+  }
+}
 </script>
 </div>
+
+<!-- Lap Speed Calculator — a standalone tool, kept below the simulator and
+     matched to its width so the two read as one page rather than two. -->
+<div class="calculator-wrapper">
+
+    <div class="lap-header">
+        <h1>Lap Speed Calculator</h1>
+        <h2>Average speed from distance and lap time</h2>
+    </div>
+
+    <div class="lap-card">
+        <div class="lap-unit-row">
+            <span class="lap-unit-label">Units</span>
+            <div class="lap-unit-toggle">
+                <button type="button" id="lapUnitImperial" class="lap-unit-btn active">Miles / MPH</button>
+                <button type="button" id="lapUnitMetric" class="lap-unit-btn">Kilometres / KM/H</button>
+            </div>
+        </div>
+
+        <div class="lap-param-grid">
+            <div class="lap-param-box">
+                <label for="distance">Distance</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    id="distance"
+                    oninput="calculateLapSpeed()"
+                    placeholder="0.000"
+                >
+                <small id="distanceUnit">Miles</small>
+            </div>
+
+            <div class="lap-param-box">
+                <label for="time">Lap Time</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    id="time"
+                    oninput="calculateLapSpeed()"
+                    placeholder="0.000"
+                >
+                <small>Seconds</small>
+            </div>
+        </div>
+
+        <div class="lap-metrics">
+            <div class="lap-metric lap-metric-primary">
+                <div class="lap-metric-label">Average Speed</div>
+                <input type="text" id="lapPrimary" class="lap-metric-value" readonly>
+                <span class="lap-metric-unit" id="lapPrimaryUnit">MPH</span>
+            </div>
+
+            <div class="lap-metric">
+                <div class="lap-metric-label">Equivalent</div>
+                <input type="text" id="lapSecondary" class="lap-metric-value" readonly>
+                <span class="lap-metric-unit" id="lapSecondaryUnit">KM/H</span>
+            </div>
+        </div>
+
+        <button type="button" class="lap-clear-btn" onclick="clearCalculator()">Clear Fields</button>
+    </div>
+
+</div>
+
 </body>
 </html>
