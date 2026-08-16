@@ -468,12 +468,39 @@ body {
   .map-recentre button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .map-overlay-toggle-row { display: flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
   .map-overlay-toggle-row input { cursor: pointer; margin: 0; }
+  .map-overlay-toggle-heading {
+    font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-faint); line-height: 1.4; margin: 0 0 3px 0;
+  }
+  .map-overlay-toggle-group + .map-overlay-toggle-group { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border); }
+
+  /* Which run the Actual / Δ views read from. Sits above the map rather than
+     inside it: it also drives the Δ trace on the pace chart, so it isn't a
+     map-only control. */
+  .map-controls { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0 0 11px 0; font-size: 12px; color: var(--text-muted); }
+  .map-controls label { font-weight: 600; color: var(--text); }
+  .map-controls select {
+    font-family: inherit; font-size: 12px; padding: 5px 8px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text); cursor: pointer;
+  }
+  .map-controls .map-controls-note { color: var(--text-faint); font-size: 11px; }
+
   .map-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: var(--text-muted); }
   .map-legend .legend-scale { display: flex; align-items: center; gap: 6px; }
   .map-legend .legend-gradient { width: 120px; height: 10px; border-radius: 5px; background: linear-gradient(to right, #2166ac, #67a9cf, #f7f7f7, #fdae61, #d73027); }
+  /* Δ uses its own symmetric ramp: slower-than-predicted → agreement → faster.
+     The dark ring mirrors the casing the map draws under the Δ line, so the
+     near-white middle reads the same way in the key as it does on the map. */
+  .map-legend .legend-gradient.delta {
+    background: linear-gradient(to right, #0a46be, #4696eb, #f5f5f5, #f79428, #ce1414);
+    box-shadow: 0 0 0 2px rgba(20, 20, 20, .45);
+    margin: 0 3px;
+  }
   .map-legend .legend-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
   .map-legend .legend-line { display: inline-block; width: 16px; height: 3px; margin-right: 4px; vertical-align: middle; }
   .map-legend .legend-empty-note { color: var(--text-faint); font-style: italic; }
+  .map-legend .legend-stat { color: var(--text); font-variant-numeric: tabular-nums; }
   .disclaimer-note { font-size: 10.5px; color: var(--text-faint); margin: 10px 0 0 0; line-height: 1.5; }
 
   /* ================= Rail: grouped inputs ================= */
@@ -1056,7 +1083,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <div class="map-panel card">
     <h3>Route Map</h3>
-    <p class="card-note">Predicted speed heatmap along the actual GPS line (updates live with the parameters above) · named corners highlighted · braking zones marked. Map tiles require an internet connection — everything else on this page works offline.</p>
+    <p class="card-note">Colour the route by <strong>predicted</strong> speed (updates live with the parameters above), by one run's <strong>actual</strong> recorded speed, or by <strong>Δ actual − predicted</strong> — the three share one colour scale so switching between them is a like-for-like read. Named corners highlighted · braking zones marked. Map tiles require an internet connection — everything else on this page works offline.</p>
+    <p class="card-note">Actual and Δ are drawn along the selected run's <em>own</em> GPS line, not the canonical route, so the line you see is the line that run took. Distance-along-track differs between runs (total lengths span 1072–1112m), so Δ against distance carries that same drift — treat it as ±1–2% on the x-axis, not exact.</p>
+    <div class="map-controls">
+      <label for="actualRunSelect">Actual run</label>
+      <select id="actualRunSelect"></select>
+      <span class="map-controls-note">Drives the Actual and Δ map layers and the Δ trace on the pace chart above.</span>
+    </div>
     <div id="routeMap"></div>
     <div id="mapLegend" class="map-legend"></div>
     <p class="disclaimer-note">⚠ Corner, apex-speed and braking-zone markers are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
@@ -2073,7 +2106,22 @@ function getFinishSpeed() {
 
 // --- Route map: real basemap (needs internet — everything else on this page
 // works offline), speed heatmap, corner highlights, braking zones ---
-let routeMap = null, mapHeatLayer = null, mapCornerLayer = null, mapBrakeLayer = null;
+let routeMap = null, mapPaceLayer = null, mapCornerLayer = null, mapBrakeLayer = null;
+
+// Which run the Actual / Δ views read from, and which of the three mutually
+// exclusive pace views is drawn. They're exclusive because all three colour
+// the same physical line — stacking them just hides whichever is underneath.
+let actualRunIdx = 0;
+let mapPaceMode = 'predicted'; // 'predicted' | 'actual' | 'delta'
+
+// Never let a single bad launch sample collapse the Δ ramp to a smear of red;
+// below this the fit is close enough that finer resolution is noise.
+const DELTA_SCALE_MIN_KMH = 5;
+
+// Δ line colour on the pace chart. Deliberately outside the run palette
+// (blues/teals), the predicted purple and CORNER_COLORS, so it can't be
+// mistaken for any of them.
+const DELTA_COLOR = '#D81B60';
 
 // Diverging blue→white→red scale, standard for a "slow vs fast" heatmap.
 function speedToColor(v, vMin, vMax) {
@@ -2111,6 +2159,109 @@ function predictedSpeedAt(predicted, d) {
   return predicted[predicted.length-1].y;
 }
 
+// Linear interpolation into one run's own {d, v} samples. Same basis the
+// chart draws the run with, so the map, the chart and the Δ figures can't
+// disagree about what "actual speed here" means.
+function runSpeedAt(run, d) {
+  if (!run.length) return 0;
+  if (d <= run[0].d) return run[0].v;
+  if (d >= run[run.length-1].d) return run[run.length-1].v;
+  let lo = 0, hi = run.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (run[mid].d <= d) lo = mid; else hi = mid;
+  }
+  const span = run[hi].d - run[lo].d || 1;
+  return run[lo].v + ((d - run[lo].d) / span) * (run[hi].v - run[lo].v);
+}
+
+// Actual − predicted for one run, evaluated at that run's OWN sample
+// distances rather than on a resampled common grid: those are the only
+// places where actual speed is a measurement instead of an interpolation,
+// so that's where the comparison is honest. Positive Δ = the run went
+// faster than the model says it could — i.e. the model is conservative
+// there, the same sign convention the fidelity table already uses.
+function runDeltaSeries(runIdx, predicted) {
+  const run = runsData[runIdx];
+  if (!run || !run.length) return [];
+  const predEnd = predicted[predicted.length - 1].x;
+  return run.filter(p => p.d <= predEnd).map(p => {
+    const pv = predictedSpeedAt(predicted, p.d);
+    return { d: p.d, actual: p.v, predicted: pv, delta: p.v - pv };
+  });
+}
+
+// First 100m dropped for the same reason the fidelity table drops it: GPS
+// jitter is a large fraction of displacement at walking pace, so early Δ is
+// a distance-tagging artefact, not a model error.
+const DELTA_STATS_FROM_M = 100;
+function deltaStats(series) {
+  const s = series.filter(p => p.d >= DELTA_STATS_FROM_M);
+  if (!s.length) return null;
+  const mean = s.reduce((a, p) => a + p.delta, 0) / s.length;
+  const rmse = Math.sqrt(s.reduce((a, p) => a + p.delta * p.delta, 0) / s.length);
+  const worst = s.reduce((a, p) => Math.abs(p.delta) > Math.abs(a.delta) ? p : a, s[0]);
+  return { mean, rmse, worst };
+}
+
+// Symmetric diverging ramp for Δ. Zero sits at the neutral middle so the eye
+// reads "no colour = model agrees", and the blue→red sense matches the speed
+// scale: red is the faster end of whatever's being shown.
+//
+// Chroma is deliberately much higher than a textbook RdBu. That palette is
+// built for choropleths, where the mark is a large filled area and pastels
+// have room to register; here the mark is a 3-7px line over arbitrary
+// basemap imagery, which needs far more saturation to survive. Paired with
+// the dark casing and |Δ| width encoding in refreshRouteMap() — colour alone
+// was not enough to pick the line out against street tiles.
+function deltaToColor(dv, span) {
+  const stops = [
+    [-1.00, [ 10,  70, 190]],  // much slower than predicted — deep vivid blue
+    [-0.50, [ 70, 150, 235]],
+    [ 0.00, [245, 245, 245]],  // agreement — reads as white against the casing
+    [ 0.50, [247, 148,  40]],
+    [ 1.00, [206,  20,  20]]   // much faster than predicted — deep vivid red
+  ];
+  let t = span > 0 ? dv / span : 0;
+  t = Math.max(-1, Math.min(1, t));
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i][0] && t <= stops[i+1][0]) { lo = stops[i]; hi = stops[i+1]; break; }
+  }
+  const localSpan = hi[0] - lo[0];
+  const localT = localSpan > 0 ? (t - lo[0]) / localSpan : 0;
+  const c = lo[1].map((v0, i) => Math.round(v0 + (hi[1][i] - v0) * localT));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// The Actual/Δ views need a run that's actually being counted. Hidden runs
+// are excluded from every other readout on the page (see runVisible), so
+// they're excluded here too rather than quietly reappearing on the map.
+function actualRunUsable() {
+  return actualRunIdx < runsData.length && runVisible[actualRunIdx];
+}
+
+// Rebuilt on every updateChart() so GPX drops appear without a reload.
+// Selecting a hidden run un-hides it: picking it for comparison is an
+// explicit request to see it.
+function populateActualRunSelect() {
+  const sel = document.getElementById('actualRunSelect');
+  if (!sel) return;
+  if (actualRunIdx >= runsData.length) actualRunIdx = 0;
+  const wanted = String(actualRunIdx);
+  sel.innerHTML = runsData.map((_, i) =>
+    `<option value="${i}"${String(i) === wanted ? ' selected' : ''}>Run @ ${RUN_LABELS[i] || i + 1}${runVisible[i] ? '' : ' (hidden)'}</option>`
+  ).join('');
+  if (!sel.dataset.wired) {
+    sel.dataset.wired = '1';
+    sel.addEventListener('change', () => {
+      actualRunIdx = parseInt(sel.value, 10) || 0;
+      runVisible[actualRunIdx] = true;
+      updateChart();
+    });
+  }
+}
+
 // Held so the re-centre control can always return to the framing the map
 // opened with, rather than to whatever Leaflet's current bounds happen to be.
 let routeHomeBounds = null;
@@ -2134,7 +2285,7 @@ function initRouteMap() {
     attribution: 'Tiles &copy; Esri', maxZoom: 19
   });
 
-  mapHeatLayer = L.layerGroup().addTo(routeMap);
+  mapPaceLayer = L.layerGroup().addTo(routeMap);
   mapCornerLayer = L.layerGroup().addTo(routeMap);
   mapBrakeLayer = L.layerGroup().addTo(routeMap);
 
@@ -2150,12 +2301,39 @@ function initRouteMap() {
   overlayControl.onAdd = function() {
     const div = L.DomUtil.create('div', 'leaflet-control map-overlay-toggle');
     L.DomEvent.disableClickPropagation(div);
+
+    // Pace views are radios, not checkboxes: all three paint the same line,
+    // so "both on" would only mean "one of them is invisible".
+    const paceGroup = L.DomUtil.create('div', 'map-overlay-toggle-group', div);
+    const paceHeading = L.DomUtil.create('div', 'map-overlay-toggle-heading', paceGroup);
+    paceHeading.textContent = 'Colour route by';
     [
-      { label: 'Predicted pace', layer: mapHeatLayer },
+      { mode: 'predicted', label: 'Predicted pace' },
+      { mode: 'actual', label: 'Actual pace' },
+      { mode: 'delta', label: 'Δ actual − predicted' }
+    ].forEach(item => {
+      const row = L.DomUtil.create('label', 'map-overlay-toggle-row', paceGroup);
+      const rb = L.DomUtil.create('input', '', row);
+      rb.type = 'radio';
+      rb.name = 'mapPaceMode';
+      rb.value = item.mode;
+      rb.checked = item.mode === mapPaceMode;
+      rb.addEventListener('change', () => {
+        if (!rb.checked) return;
+        mapPaceMode = item.mode;
+        updateChart();
+      });
+      row.appendChild(document.createTextNode(item.label));
+    });
+
+    const overlayGroup = L.DomUtil.create('div', 'map-overlay-toggle-group', div);
+    const overlayHeading = L.DomUtil.create('div', 'map-overlay-toggle-heading', overlayGroup);
+    overlayHeading.textContent = 'Overlays';
+    [
       { label: 'Corners', layer: mapCornerLayer },
       { label: 'Braking zones', layer: mapBrakeLayer }
     ].forEach(item => {
-      const row = L.DomUtil.create('label', 'map-overlay-toggle-row', div);
+      const row = L.DomUtil.create('label', 'map-overlay-toggle-row', overlayGroup);
       const cb = L.DomUtil.create('input', '', row);
       cb.type = 'checkbox';
       cb.checked = true;
@@ -2188,30 +2366,104 @@ function initRouteMap() {
   setTimeout(() => routeMap.invalidateSize(), 200); // container may not have had final layout size at init
 }
 
+// Fixed-interval sample distances along a track, finer than the raw ~15-30m
+// GPS point spacing so the colour gradient reads as a gradient.
+const MAP_SAMPLE_STEP_M = 8;
+function sampleDistances(end) {
+  const out = [];
+  for (let d = 0; d <= end; d += MAP_SAMPLE_STEP_M) out.push(d);
+  if (out[out.length-1] < end) out.push(end);
+  return out;
+}
+
+// A dark casing under the coloured line. Without it the pale end of any
+// diverging scale lands at the same lightness as OSM's street tiles and
+// disappears; with it, every colour — including the near-white Δ neutral —
+// reads as a deliberate mark. Drawn as ONE polyline for the whole track
+// rather than per segment, so it costs a single layer instead of ~140, and
+// non-interactive so it never steals hover from the segments on top.
+const MAP_CASING_WEIGHT = 9;
+const MAP_CORE_WEIGHT = 5;              // predicted / actual: uniform
+const MAP_DELTA_WEIGHT = [3, 7];        // Δ: |Δ|=0 → |Δ|=span
+
+// Δ gets |Δ| on line width as well as colour. Redundant encoding is what
+// makes the map scannable — where the model is wrong reads as thick and
+// loud before you've parsed a single hue, and where it agrees recedes to a
+// thin dark thread rather than shouting a colour you then have to decode.
+function deltaWeight(dv, span) {
+  const t = span > 0 ? Math.min(1, Math.abs(dv) / span) : 0;
+  return MAP_DELTA_WEIGHT[0] + t * (MAP_DELTA_WEIGHT[1] - MAP_DELTA_WEIGHT[0]);
+}
+
 function refreshRouteMap(predicted, zoneState) {
   if (!routeMap) return;
-  mapHeatLayer.clearLayers();
+  mapPaceLayer.clearLayers();
   mapCornerLayer.clearLayers();
   mapBrakeLayer.clearLayers();
 
-  // Speed heatmap: resample the known GPS line at fixed intervals (finer
-  // than the raw ~15-30m point spacing, for a smoother gradient) and colour
-  // each short segment by the live predicted speed there.
-  const routeEnd = routePoints[routePoints.length - 1].d;
-  const step = 8;
-  const samples = [];
-  for (let d = 0; d <= routeEnd; d += step) samples.push(d);
-  if (samples[samples.length-1] < routeEnd) samples.push(routeEnd);
-  const speeds = samples.map(d => predictedSpeedAt(predicted, d));
-  const vMin = Math.min(...speeds), vMax = Math.max(...speeds);
+  // Both pace series are built regardless of which view is showing, because
+  // the colour scale is shared across all three views. If Actual re-scaled
+  // itself to its own min/max, the same colour would mean different speeds
+  // either side of a radio click and the comparison would be worthless.
+  const predSamples = sampleDistances(routePoints[routePoints.length - 1].d);
+  const predSpeeds = predSamples.map(d => predictedSpeedAt(predicted, d));
 
-  for (let i = 0; i < samples.length - 1; i++) {
-    const p1 = interpolateRoutePoint(routePoints, samples[i]);
-    const p2 = interpolateRoutePoint(routePoints, samples[i+1]);
-    const v = (speeds[i] + speeds[i+1]) / 2;
-    L.polyline([[p1.lat, p1.lon], [p2.lat, p2.lon]], {
-      color: speedToColor(v, vMin, vMax), weight: 5, opacity: 0.9
-    }).bindTooltip(`${v.toFixed(0)} km/h @ ${Math.round(samples[i])}m`, { sticky: true }).addTo(mapHeatLayer);
+  const runUsable = actualRunUsable();
+  const actRun = runUsable ? runsData[actualRunIdx] : null;
+  const actPts = runUsable ? allRoutePoints[actualRunIdx] : null;
+  let actSamples = [], actSpeeds = [], actDeltas = [];
+  if (runUsable) {
+    actSamples = sampleDistances(Math.min(actPts[actPts.length-1].d, actRun[actRun.length-1].d));
+    actSpeeds = actSamples.map(d => runSpeedAt(actRun, d));
+    actDeltas = actSamples.map((d, i) => actSpeeds[i] - predictedSpeedAt(predicted, d));
+  }
+
+  const allV = runUsable ? predSpeeds.concat(actSpeeds) : predSpeeds;
+  const vMin = Math.min(...allV), vMax = Math.max(...allV);
+
+  // Δ scale is symmetric about zero so "no colour" always means "the model
+  // agreed here", and skips the launch window for the same reason deltaStats
+  // does — see DELTA_STATS_FROM_M.
+  const deltaSpan = Math.max(
+    DELTA_SCALE_MIN_KMH,
+    ...actDeltas.filter((_, i) => actSamples[i] >= DELTA_STATS_FROM_M).map(Math.abs)
+  );
+
+  const drawSegments = (pts, samples, colorAt, tooltipAt, weightAt) => {
+    const latlngs = samples.map(d => {
+      const p = interpolateRoutePoint(pts, d);
+      return [p.lat, p.lon];
+    });
+    L.polyline(latlngs, {
+      color: '#141414', weight: MAP_CASING_WEIGHT, opacity: 0.45,
+      lineCap: 'round', lineJoin: 'round', interactive: false
+    }).addTo(mapPaceLayer);
+    for (let i = 0; i < samples.length - 1; i++) {
+      L.polyline([latlngs[i], latlngs[i+1]], {
+        color: colorAt(i), weight: weightAt ? weightAt(i) : MAP_CORE_WEIGHT, opacity: 1,
+        lineCap: 'round', lineJoin: 'round'
+      }).bindTooltip(tooltipAt(i), { sticky: true }).addTo(mapPaceLayer);
+    }
+  };
+
+  if (mapPaceMode === 'predicted') {
+    drawSegments(routePoints, predSamples,
+      i => speedToColor((predSpeeds[i] + predSpeeds[i+1]) / 2, vMin, vMax),
+      i => `${((predSpeeds[i] + predSpeeds[i+1]) / 2).toFixed(0)} km/h predicted @ ${Math.round(predSamples[i])}m`);
+  } else if (runUsable && mapPaceMode === 'actual') {
+    drawSegments(actPts, actSamples,
+      i => speedToColor((actSpeeds[i] + actSpeeds[i+1]) / 2, vMin, vMax),
+      i => `${((actSpeeds[i] + actSpeeds[i+1]) / 2).toFixed(0)} km/h actual @ ${Math.round(actSamples[i])}m`);
+  } else if (runUsable && mapPaceMode === 'delta') {
+    drawSegments(actPts, actSamples,
+      i => deltaToColor((actDeltas[i] + actDeltas[i+1]) / 2, deltaSpan),
+      i => {
+        const dv = (actDeltas[i] + actDeltas[i+1]) / 2;
+        const av = (actSpeeds[i] + actSpeeds[i+1]) / 2;
+        return `${dv >= 0 ? '+' : ''}${dv.toFixed(1)} km/h vs predicted @ ${Math.round(actSamples[i])}m` +
+               `<br>actual ${av.toFixed(1)}, predicted ${(av - dv).toFixed(1)} km/h`;
+      },
+      i => deltaWeight((actDeltas[i] + actDeltas[i+1]) / 2, deltaSpan));
   }
 
   // Named corners: a translucent thick band along the corner's own span,
@@ -2249,10 +2501,10 @@ function refreshRouteMap(predicted, zoneState) {
   });
 
   const brakingZoneCount = zoneState.filter(zs => zs.brakePointDist !== null).length;
-  refreshMapLegend(vMin, vMax, brakingZoneCount);
+  refreshMapLegend({ vMin, vMax, brakingZoneCount, deltaSpan, runUsable, stats: deltaStats(runDeltaSeries(actualRunIdx, predicted)) });
 }
 
-function refreshMapLegend(vMin, vMax, brakingZoneCount) {
+function refreshMapLegend({ vMin, vMax, brakingZoneCount, deltaSpan, runUsable, stats }) {
   const el = document.getElementById('mapLegend');
   if (!el) return;
   const cornerSwatches = cornerZones.map((z, i) =>
@@ -2261,8 +2513,26 @@ function refreshMapLegend(vMin, vMax, brakingZoneCount) {
   const brakingNote = brakingZoneCount === 0
     ? ' <span class="legend-empty-note">(none at these parameters — every corner is currently carried on grip/gravity/drag alone)</span>'
     : '';
+  const runName = `Run @ ${RUN_LABELS[actualRunIdx] || actualRunIdx + 1}`;
+
+  let scale;
+  if (mapPaceMode === 'delta' && runUsable) {
+    const sign = v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+    const summary = stats
+      ? `<span class="legend-stat">${runName}: mean Δ ${sign(stats.mean)} · RMSE ${stats.rmse.toFixed(1)} km/h · worst ${sign(stats.worst.delta)} at ${Math.round(stats.worst.d)}m</span>`
+      : '';
+    scale = `<span class="legend-scale">−${deltaSpan.toFixed(0)}<span class="legend-gradient delta"></span>+${deltaSpan.toFixed(0)} km/h
+      <span class="legend-empty-note">(blue = slower than predicted, red = faster; line thickens with |Δ|, so agreement reads thin and dark; from ${DELTA_STATS_FROM_M}m)</span></span>${summary}`;
+  } else if (!runUsable && mapPaceMode !== 'predicted') {
+    scale = `<span class="legend-empty-note">${runName} is hidden in the chart legend — re-enable it there, or pick a different run above.</span>`;
+  } else {
+    const which = mapPaceMode === 'actual' ? `${runName}, actual` : 'predicted';
+    scale = `<span class="legend-scale">${vMin.toFixed(0)} km/h<span class="legend-gradient"></span>${vMax.toFixed(0)} km/h
+      <span class="legend-empty-note">(${which}; scale shared with the other pace views)</span></span>`;
+  }
+
   el.innerHTML = `
-    <span class="legend-scale">${vMin.toFixed(0)} km/h<span class="legend-gradient"></span>${vMax.toFixed(0)} km/h</span>
+    ${scale}
     ${cornerSwatches}
     <span><span class="legend-line" style="background:#c0392b;"></span>Braking zone${brakingNote}</span>
   `;
@@ -2596,6 +2866,9 @@ function renderFidelity(diagnostics) {
 }
 
 function updateChart() {
+  // Rebuilt first so a GPX drop appears in the picker, and so actualRunIdx is
+  // clamped before anything downstream indexes runsData with it.
+  populateActualRunSelect();
   // Cheap to redo every call — keeps corner radius/apex-speed stats in sync
   // with whichever runs are currently toggled visible in the legend.
   cornerFitResults = refreshCornerGeometry();
@@ -2635,6 +2908,42 @@ function updateChart() {
     tension: 0
   });
   
+  // Δ trace, on its own right-hand axis: actual − predicted for the selected
+  // run. Same numbers the fidelity table aggregates per section, but
+  // continuous, so where the model loses or gains time is visible rather
+  // than averaged away. Filled to zero because the sign is the whole point.
+  const deltaSeries = actualRunUsable() ? runDeltaSeries(actualRunIdx, predicted) : [];
+  const deltaAxisSpan = deltaSeries.length
+    ? Math.ceil(Math.max(DELTA_SCALE_MIN_KMH,
+        ...deltaSeries.filter(p => p.d >= DELTA_STATS_FROM_M).map(p => Math.abs(p.delta))) / 5) * 5
+    : DELTA_SCALE_MIN_KMH;
+
+  if (deltaSeries.length) {
+    datasets.push({
+      label: `Δ Run @ ${RUN_LABELS[actualRunIdx] || actualRunIdx + 1} − predicted`,
+      data: deltaSeries.map(p => ({x: p.d, y: p.delta})),
+      yAxisID: 'y1',
+      borderColor: DELTA_COLOR,
+      backgroundColor: 'rgba(216,27,96,0.10)',
+      borderWidth: 1.6,
+      pointRadius: 0,
+      showLine: true,
+      fill: {target: {value: 0}},
+      tension: 0
+    });
+    datasets.push({
+      label: 'Δ zero',
+      data: [{x: 0, y: 0}, {x: 1150, y: 0}],
+      yAxisID: 'y1',
+      borderColor: 'rgba(216,27,96,0.45)',
+      borderWidth: 1,
+      borderDash: [3, 4],
+      pointRadius: 0,
+      showLine: true,
+      tension: 0
+    });
+  }
+
   datasets.push({
     label: 'Finish Line',
     data: [{x: FINISH_DISTANCE, y: 0}, {x: FINISH_DISTANCE, y: 90}],
@@ -2661,6 +2970,11 @@ function updateChart() {
   
   if (paceChartInstance) {
     paceChartInstance.data.datasets = datasets;
+    // Rescaled here rather than left to Chart.js's autoscale: the axis has to
+    // stay symmetric about zero for the fill's sign to read at a glance.
+    paceChartInstance.options.scales.y1.min = -deltaAxisSpan;
+    paceChartInstance.options.scales.y1.max = deltaAxisSpan;
+    paceChartInstance.options.scales.y1.display = deltaSeries.length > 0;
     paceChartInstance.update('none');
   } else {
     const ctx = document.getElementById('paceChart').getContext('2d');
@@ -2676,7 +2990,12 @@ function updateChart() {
         plugins: {
           legend: {
             display: true, position: 'top', maxHeight: 35,
-            labels: {font: {size: 8}, padding: 3, usePointStyle: true, pointStyle: 'line'},
+            labels: {
+              font: {size: 8}, padding: 3, usePointStyle: true, pointStyle: 'line',
+              // The Δ zero line is a reference mark, not a series — a legend
+              // entry for it would only invite toggling the axis's own datum off.
+              filter: item => item.text !== 'Δ zero'
+            },
             // Run datasets (index < runsData.length) drive runVisible and go
             // through updateChart() so Max Speed / diagnostics / corners
             // re-derive from only the currently-visible runs — not just a
@@ -2700,7 +3019,15 @@ function updateChart() {
         },
         scales: {
           x: {type: 'linear', min: 0, max: 1150, title: {display: true, text: 'Distance (m)', font: {size: 10}}},
-          y: {min: 0, max: 90, title: {display: true, text: 'Speed (km/h)', font: {size: 10}}}
+          y: {min: 0, max: 90, title: {display: true, text: 'Speed (km/h)', font: {size: 10}}},
+          y1: {
+            position: 'right',
+            display: deltaSeries.length > 0,
+            min: -deltaAxisSpan, max: deltaAxisSpan,
+            grid: {drawOnChartArea: false}, // one gridline set only — two overlaid grids at different scales is unreadable
+            ticks: {color: DELTA_COLOR, font: {size: 9}},
+            title: {display: true, text: 'Δ actual − predicted (km/h)', color: DELTA_COLOR, font: {size: 10}}
+          }
         }
       }
     });

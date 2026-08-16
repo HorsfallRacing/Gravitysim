@@ -712,3 +712,134 @@ script that defines its handlers.
 The Dreamweaver-era `>Lap Speed Calculator` heading (a `<FONT size=+2>` string
 split across three spans inside the layout table) is gone — the calculator's own
 `.lap-header` already titles it.
+
+---
+
+## Session update: actual pace on the map, and an actual-vs-predicted Δ trace
+
+Presentation and diagnostics only. **No physics changed** —
+`predictPaceWithDiagnostics()`, the envelope passes, `analyzeCorners()` and
+every constant are untouched. Everything added here reads outputs that already
+existed; nothing feeds back into the model.
+
+### What was missing
+The map only ever showed *predicted* pace, and the only actual-vs-predicted
+comparison on the page was the fidelity table's four section averages. Where
+along the course the model gains or loses is exactly the thing those averages
+throw away.
+
+### Three views of the same line
+The map's pace overlay is now a mutually exclusive radio group ("Colour route
+by"), not a checkbox: all three views paint the same physical line, so "both
+on" would only ever mean "one of them is invisible". Corners and Braking zones
+stay checkboxes, unchanged.
+
+- **Predicted pace** — as before.
+- **Actual pace** — the selected run's recorded speed.
+- **Δ actual − predicted** — symmetric diverging ramp about zero.
+
+**All three share one colour scale**, computed across the predicted *and*
+actual sample sets together (`refreshRouteMap()`). If Actual rescaled to its
+own min/max, the same colour would mean different speeds either side of a
+radio click and the comparison would be worthless.
+
+**Actual and Δ are drawn along the selected run's own GPS line**
+(`allRoutePoints[actualRunIdx]`), not the canonical `routePoints`, so the line
+on screen is the line that run actually took.
+
+### Run selection
+A `<select>` above the map (`#actualRunSelect`, rebuilt every `updateChart()`
+so GPX drops appear without a reload) picks which run feeds the Actual/Δ views
+*and* the chart's Δ trace. It sits above the map rather than inside it because
+it isn't a map-only control.
+
+Selecting a hidden run un-hides it — picking it for comparison is an explicit
+request to see it. Hiding the selected run afterwards blanks the Actual/Δ
+layers and says so in the legend, rather than silently switching to a different
+run: hidden runs are excluded from every other readout on the page
+(`runVisible`), so they're excluded here too.
+
+### Δ trace on the pace chart
+New dataset on a right-hand `y1` axis, filled to zero (the sign is the whole
+point), plotted at the run's **own sample distances** rather than on a
+resampled common grid — those are the only places actual speed is a
+measurement rather than an interpolation. `y1` is kept symmetric about zero
+and rescaled per run in `updateChart()` rather than left to Chart.js autoscale.
+The Δ zero reference line is filtered out of the chart legend: it's a datum,
+not a series, and a legend entry would only invite toggling it off.
+
+Sign convention matches the fidelity table: **Δ = actual − predicted**, so
+negative means the model is optimistic. First 100m excluded from the Δ stats
+and the colour/axis scaling for the same reason the fidelity table excludes
+it — GPS jitter is a large fraction of displacement at walking pace, so early
+Δ is a distance-tagging artefact, not model error.
+
+### What the Δ actually says (calibrated μ≈0.50, from 100m)
+
+| Run | mean Δ | RMSE | worst Δ | at | run ends |
+|---|---|---|---|---|---|
+| 13:31 | −0.2 | 5.1 | −14.9 | 1093m | 1102m |
+| 09:31 | −4.5 | 8.4 | −32.2 | 1112m | 1112m |
+| 11:37 | −3.1 | 6.3 | −26.4 | 1097m | 1097m |
+| 12:17 | −6.1 | 13.3 | −40.2 | 1072m | 1072m |
+| 12:49 | −5.9 | 13.8 | −42.5 | 1101m | 1101m |
+
+Two things fall out of this table:
+
+- **Every mean is negative.** The model is optimistic against all five runs —
+  it predicts more speed than was carried. 13:31 is the run the μ calibration
+  was fitted to, which is why it's near zero and the others aren't.
+- **Every run's worst Δ is its own final sample.** This is a recording-boundary
+  artefact, not a model error: the model carries speed to `dMax`=1120m while
+  each GPX recording stops between 1072m and 1112m with the kart braking to a
+  halt. It inflates RMSE and stretches the Δ axis — 12:17 and 12:49 scale to
+  ±40 largely because of it. Left faithful rather than trimmed, since any cut-off
+  rule would be arbitrary, but it's the first thing to discount when reading the
+  tail of a Δ trace. A `evt_beacon` channel (LOGGER_SPEC.md) would remove this
+  permanently by fixing the real finish line per run.
+
+### Colour scale: the first attempt didn't work
+The Δ layer initially used a textbook RdBu diverging ramp and was very hard to
+pick out against the basemap. Three separate causes, all fixed:
+
+1. **White neutral collided with the basemap.** OSM street tiles sit at almost
+   exactly that lightness, so "the model agreed here" — the most common case —
+   rendered as an invisible line.
+2. **Not enough chroma.** RdBu is built for choropleths, where the mark is a
+   large filled area and pastels have room to register. Here the mark is a
+   3–7px line, which needs far more saturation. Ends pushed to `#0a46be` /
+   `#ce1414` with the mid-tones properly saturated.
+3. **No casing.** Added a `#141414` polyline at weight 9 *under* the coloured
+   segments, so every colour sits on its own dark ribbon instead of competing
+   with whatever tile is behind it. Drawn as **one** polyline for the whole
+   track (not one per segment — a single layer instead of ~140) and marked
+   `interactive: false` so it never steals hover from the segments above it.
+   Applied to all three views, since Predicted and Actual had the same
+   weakness.
+
+**Plus |Δ| on line width as well as colour** — 3px at agreement, 7px at full
+scale. This is the change that made it scannable: redundant encoding means the
+problem areas read as thick and loud before any hue is decoded, and agreement
+recedes to a thin dark thread. On 13:31 that distributes as 43% thin/neutral,
+44% mid, 13% fat and saturated — most of the route quietly recedes and the
+eight genuinely-wrong segments jump out.
+
+### Known limitation: distance drift between runs
+Each run's d-axis is its own haversine cumulative and total lengths span
+1072–1112m (the same drift `locateCornerInRun()` already works around by
+matching corners on lat/lon rather than distance). Δ against distance inherits
+it — roughly ±1–2% on the x-axis. Stated in the map panel text rather than
+silently corrected.
+
+### Verification
+Structural and functional, via evaluated JS against the live page: all three
+modes render, casing present and non-interactive on each, Δ core weights span
+3.0–7.0, colour interpolation correct at the stops, run selector repopulates
+and un-hides, hidden-run fallback message fires, `y1` rescales per run, Δ zero
+filtered from the chart legend, no new console errors. (The pre-existing
+`MM_preloadImages` error from the legacy site nav is unrelated and predates
+this work.)
+
+**Not visually verified** — screenshots were unavailable in this session, so
+the rendered appearance over real tiles was confirmed by the user, not by
+inspection.
