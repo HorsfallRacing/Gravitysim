@@ -843,3 +843,202 @@ this work.)
 **Not visually verified** — screenshots were unavailable in this session, so
 the rendered appearance over real tiles was confirmed by the user, not by
 inspection.
+
+---
+
+## Session update: GPX timestamps recovered, sector times, mobile
+
+Three things: the run data gained a time channel it always could have had, the
+corner panel became a corner *and sector* panel keyed on time rather than
+speed, and the page became usable on a phone for the first time. **No physics
+changed** — `predictPaceWithDiagnostics()`'s force model, the envelope passes,
+`analyzeCorners()` and every constant are untouched. Run Time, finish speed and
+peak speeds all still read 83.5s / 36.0 / 66.3 / 74.0.
+
+### The gap: the page had no time axis
+
+Everything on it was km/h. Run Time appeared exactly once, as a total, and
+every diagnostic below it — RMSE, Δ, apex, peak, grip limit — was a speed. That
+makes speed error and time cost look interchangeable when they aren't: Willow
+under-predicts apex by 6.3 km/h and ranked second-worst in the corner table,
+but costs 0.91s; Chippy's is the largest speed miss on the page at +15.2 km/h
+and costs 0.51s.
+
+### `t` was in the GPX all along and was being thrown away
+
+`runsData` was `{d, v}`. The GPX timestamps were read at parse time (to derive
+speed by central difference) and then discarded, which meant any actual sector
+time had to be obtained by integrating `dt = dd/v` back out of the trace.
+
+That integration is systematically short — **85.7-90.0s against measured
+87-92s** across the five runs — and the deficit is not spread out. Comparing
+per sector on the original run, every sector agrees to within 0.07s **except
+the launch**, which is short by 1.11s of a 1.08s total. Trapezoidal integration
+of speed against distance under-reads badly wherever speed climbs steeply from
+near-zero across sparse samples, which describes 0-63m and nothing else on the
+course.
+
+Fixed by re-parsing the five source GPX files and adding `t` (elapsed seconds
+from each run's own first trackpoint). The re-parse reproduced the existing
+`d` and `v` arrays **exactly** — max deviation 0.000 on both, all five runs —
+before anything was written, so this was verifiably a pure addition and not a
+silent re-derivation of data other things are calibrated against. The embedded
+literals were edited in place, leaving the `d`/`v` text byte-identical.
+
+`addGpxRun()` now keeps `t` too (rebased to the dropped run's own start), so
+uploaded runs behave like embedded ones. It was already computing it and
+dropping it on the same line.
+
+**Resolution caveat, stated in the panel rather than hidden:** GPX timestamps
+are whole seconds. A sector boundary falls between trackpoints and is
+interpolated (distributed across the bracketing pair by its own speed profile,
+not linearly in distance, then scaled to match the measured interval), so a
+sector time carries roughly **±0.5s**. Δt under about half a second is inside
+the measurement's own resolution. The table colours accordingly — green under
+0.5s, amber to 1.0s, red beyond.
+
+### Sectors, merged into the corner table
+
+Six sectors, one per corner, each running from the previous corner's exit to
+this corner's exit. Approach and corner are deliberately one unit — braking
+point and entry speed are a single decision, and a "corner time" that excludes
+the straight before it can't be acted on independently. Every metre belongs to
+exactly one sector, so **the six sector times sum to Run Time** (83.45 against
+the headline 83.46; the remainder is rounding). The table closes on a total row
+that makes that reconciliation visible rather than leaving it to be trusted.
+
+Merged into the existing Corners panel rather than added as a new one, per the
+user's call, and held to seven columns by folding grip limit under radius (it's
+derived from radius and μ, so it reads naturally there) and dropping the Δ-apex
+bar to a plain signed number. The bar now encodes **Δt**, and the table sorts
+by it.
+
+Sector times come from `predictPaceWithDiagnostics()`'s own 1m `mergedV` grid
+via a new cumulative-time array, not from the 10m `predicted` array the chart
+and map use. That matters: reconstructing sector times from the 10m array put
+the launch 1.8s out on its own, for the same convexity reason the integration
+bias exists. Predicted sector figures stay inside the physics function;
+**actual** sector time is computed in `renderCornerTable()` from the selected
+run, keeping run-selection state out of the physics — the same split already
+applied to radius (ignores the legend) vs apex speed (follows it).
+
+### What the sector table says
+
+Original run (13:31), calibrated μ≈0.50, sorted by |Δt|:
+
+| Sector | Span | Entry → exit | Pred | Actual | Δt |
+|---|---|---|---|---|---|
+| Quarry | 0–63m | 4.0 → 33.6 | 15.14 | 16.88 | **+1.74** |
+| Willow | 594–830m | 45.8 → 47.6 | 14.92 | 14.01 | −0.91 |
+| Farmhouse/Croisdale | 63–421m | 33.6 → 59.6 | 24.76 | 24.10 | −0.66 |
+| Chippy's | 922–1078m | 57.8 → 47.3 | 10.00 | 10.51 | +0.51 |
+| Orchard | 421–594m | 59.6 → 45.8 | 11.68 | 11.98 | +0.30 |
+| Country | 830–922m | 47.6 → 57.8 | 6.95 | 7.03 | +0.07 |
+| | | | **83.46** | **84.51** | **+1.05** |
+
+Two things worth recording:
+
+- **The launch is the single largest error on the course**, roughly double the
+  next, and it is the one region no existing readout covers — the fidelity
+  panel starts at 100m by design (GPS jitter is a large fraction of
+  displacement at walking pace, which is the right call for *speed* RMSE and
+  the wrong one for *time*). It is also exactly where `altimeterSettlingScale`
+  was fitted, so the two should be looked at together: the settling correction
+  is an unconfirmed assumption tuned in the same 0-150m window that now shows
+  the biggest time deficit.
+- **The total is more accurate than the model is.** Sector errors run −0.91s to
+  +1.74s and largely cancel to +1.05s. A headline built on offsetting errors
+  will not stay accurate through a parameter change or a different vehicle,
+  which is precisely what this page is meant to be used for.
+
+Across all five runs the total Δt ranges −0.96s (09:31, model pessimistic) to
++3.97s (12:49). Worth noting because in *speed* terms the model is optimistic
+against all five; in time terms it is not, so the two framings genuinely
+disagree and the speed-only view was not telling the whole story. Run 12:17
+stops at 1072m, short of the 1078m finish, and correctly reports "run stops
+short" rather than a partial total.
+
+### Mobile
+
+The page had no `viewport` meta tag at all. Mobile browsers therefore assumed a
+~980px desktop layout viewport and scaled the whole thing to roughly 38% — and
+because the layout viewport stayed at 980px, the existing 1080px/640px media
+queries (which were fine) **never matched on a phone**.
+
+Adding the meta alone was not enough: the Dreamweaver chrome around this page
+pins a ~880px floor via `<table width="847">` and an 860px banner image. Two
+false starts worth recording, because both fail silently:
+
+1. `max-width: 100%` on the images does nothing. A percentage max-width inside
+   an **auto-layout** table resolves against a containing block whose width
+   depends on that same content; browsers resolve the circularity by treating
+   it as `none`. The table always grows to min-content, which the banner's own
+   `width` attribute sets.
+2. `max-width: 100vw` binds, but `100vw` **includes the vertical scrollbar**, so
+   on any viewport that has one the chrome lands ~15px wider than the usable
+   width and re-introduces the horizontal scroll it was meant to remove.
+
+The fix is `table-layout: fixed` on the legacy tables, which makes cell widths
+definite up front so `max-width: 100%` on the images finally binds. Every row
+in that chrome is a single `colspan="6"` cell, so fixing the layout costs
+nothing in column proportions. Plus `border-spacing: 0` (the default 2px per
+nested table is on its own enough to overflow) and `body { margin: 0 }` (the UA
+default 8px is what the caps would otherwise be measured against). All of it
+sits inside `@media (max-width: 900px)`, below the chrome's natural width, so
+the desktop rendering is unchanged **by construction** rather than by argument.
+
+This also removes the horizontal scroll below ~870px that the previous session
+recorded as pre-existing and out of scope.
+
+Then the tuning: chart 450→300px and map 480→320px on small screens (both were
+fixed desktop heights taking most of a phone screen each, on a ~7000px page);
+all text inputs to 16px, since iOS Safari zooms in on focus below that and
+never zooms back out, which on a page this input-heavy leaves the layout
+magnified after every edit; two-up rail grid; stacked map controls. Data tables
+deliberately keep scrolling horizontally rather than reflowing into cards —
+they're numeric comparisons whose value is the column-to-column read.
+
+A debounced `resize` handler now calls `paceChartInstance.resize()` and
+`routeMap.invalidateSize()`. Chart.js sizes its canvas from the container it
+saw at creation and does not reliably pick up a width change originating from a
+media query rather than the container's own box; without this, a phone rotation
+could leave the canvas at its landscape width and push the document into
+horizontal scroll.
+
+Also removed while in the head: a stray `<title>Untitled Document</title>` and a
+duplicate `</head><body>` pair mid-document. Browsers recovered from both, but
+they made the markup misleading to read.
+
+### Verified
+
+Widths swept at 1440 / 820 / 768 / 390 / 360 / 320px: no page-level horizontal
+overflow at any of them (the only elements extending past the viewport are
+Leaflet tiles, correctly clipped inside the map). Desktop confirmed unchanged in
+layout — 1240px sim, 304px sticky rail, 412px chart, 480px map, 13px inputs,
+860px banner, 8px body margin. Sector times verified to sum to Run Time; the run
+selector drives actual sector times across all five runs including the short one;
+μ→0.35 re-sorts the table, surfaces the Orchard braking zone at 53m out and
+returns 91.4s, and reset restores 83.5s. Only console errors are the pre-existing
+legacy `MM_preloadImages` and 404s for `Images/*`, which the local dev server
+doesn't serve.
+
+**Not visually verified** — screenshots were again unavailable in this session,
+so layout was confirmed by measured geometry rather than by looking at it. The
+legacy nav images are image maps with fixed pixel `coords`; they are scaled down
+below 900px, and whether the hotspots still line up has **not** been checked.
+
+### Open, not done
+
+- **The launch deficit and `altimeterSettlingScale` overlap** and should be
+  revisited together now that the launch is measurable in seconds.
+- **"Model vs Reality by Section" still uses arbitrary 100/400/700/950
+  boundaries** and reports in km/h. Now that corner-bounded sectors exist and
+  cover the whole course including the launch, that panel largely duplicates
+  them on worse boundaries; folding it in would remove a panel rather than add
+  one.
+- **No uncertainty band on the headline.** Run Time is a point estimate while μ
+  ±10% moves it −0.91/+2.32s and μ itself came from a 0.56-0.64 spread. The
+  sensitivity panel already computes everything a ± band would need.
+- **Nothing aggregates the five runs** — every comparison is against one
+  selected run, so there is no actual-pace corridor to judge against.
+- **Legacy image-map hotspot alignment below 900px is unverified** (above).

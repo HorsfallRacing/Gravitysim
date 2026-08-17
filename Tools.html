@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Without this, mobile browsers assume a ~980px desktop layout viewport and
+     scale the whole page down to fit, which meant the responsive rules further
+     down (1080px / 640px) never matched on a phone — the page was rendered at
+     desktop width and zoomed out to roughly 38%. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Horsfall Racing - Lap Speed Calculator</title>
 
 <style>
@@ -634,6 +639,20 @@ body {
   .data-table .row-name { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; }
   .data-table .row-name .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
   .data-table .row-meta { font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+  .data-table .th-sub {
+    display: block; font-size: 9px; font-weight: 600; text-transform: none;
+    letter-spacing: 0; color: #aeb4bd; margin-top: 2px;
+  }
+  /* Course total: the six sector times sum to Run Time, so the table can close
+     on the headline figure rather than leaving the reader to add them up. */
+  .data-table tr.total-row td {
+    border-top: 2px solid #d5dae1; border-bottom: none;
+    padding-top: 11px; font-weight: 700; color: var(--text);
+  }
+  .data-table tr.total-row td:first-child {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+  }
+  .data-table tr.total-row td.num { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
   .data-table tr.expandable { cursor: pointer; }
   .data-table tr.expandable:hover td { background: #f8f9fb; }
   .data-table tr.detail-row td { padding-top: 0; padding-bottom: 12px; }
@@ -662,15 +681,80 @@ body {
     .tradeoff-pair { grid-template-columns: 1fr; }
     .result-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+  /* --- Legacy site chrome ---
+     The Dreamweaver-era furniture around this page is fixed-width: a layout
+     <table width="847"> and a 860px-wide banner image. Those set a hard ~880px
+     floor on the whole document, so even with the viewport meta above a phone
+     still could not lay the page out at its own width — the simulator's own
+     responsive rules were never the limiting factor.
+
+     Scoped deliberately narrowly. `img[width]` matches only the three legacy
+     banner/nav images, which carry HTML width attributes; Leaflet's map tiles
+     size themselves through inline styles and must keep their natural
+     dimensions, so they are untouched. Above 880px these rules never bind and
+     the site's original appearance is unchanged.
+
+     `table-layout: fixed` is the load-bearing part. Under the default auto
+     layout a table always grows to its min-content width, which here is set by
+     the 860px banner's own width attribute, so no max-width on either the table
+     or the image can hold it back: a percentage max-width resolves against a
+     containing block whose width depends on that same content, and browsers
+     resolve that circularity by treating it as `none`. Fixed layout makes the
+     cell width definite up front, after which `max-width: 100%` on the images
+     binds and they scale down instead of dictating the width. Every row in this
+     chrome is a single colspan="6" cell, so fixing the layout costs nothing in
+     column proportions.
+
+     Percentages, not vw — `100vw` counts the vertical scrollbar, so on any
+     viewport that has one the chrome lands ~15px wider than the usable width
+     and re-introduces exactly the horizontal scroll this is meant to remove.
+
+     Confined to a media query below the chrome's own natural width so the
+     desktop rendering is untouched by construction rather than by argument.
+     border-spacing is zeroed because the default 2px gap on each nested layout
+     table is enough on its own to push the document past the viewport. */
+  @media (max-width: 900px) {
+    body { margin: 0; }
+    body > table, body > table table {
+      width: 100%; max-width: 100%; table-layout: fixed; border-spacing: 0;
+    }
+    body > table td { padding-left: 0; padding-right: 0; }
+    body > table img[width] { max-width: 100%; height: auto; }
+  }
+
   @media (max-width: 640px) {
-    #gravitySimSection { padding: 16px 12px; }
+    /* Reclaim the side gutters: the 48px inset that frames the sim on a desktop
+       is a meaningful share of a 375px screen. */
+    #gravitySimSection { --sim-width: calc(100vw - 16px); padding: 16px 12px; }
     .header h1 { font-size: 20px; }
+    .header { padding: 16px 14px; }
     .card { padding: 16px; }
     .result-band { grid-template-columns: 1fr; gap: 18px; }
     .rb-hero-value { font-size: 38px; }
     .sens-row, .sens-axis { grid-template-columns: 72px minmax(0, 1fr); }
     .sens-val { grid-column: 2; text-align: left; }
     .sens-axis > :last-child { display: none; }
+
+    /* Both of these are fixed heights chosen for a desktop window; left alone
+       they take up most of a phone screen each and push everything below them
+       far down an already ~7000px page. */
+    .chart-container { height: 300px; }
+    .chart-container.card { padding: 12px; }
+    #routeMap { height: 320px; }
+
+    /* iOS Safari zooms the page in whenever a focused input's text is under
+       16px, and never zooms back out — which on a page this input-heavy means
+       the layout is left scrolled and magnified after every edit. */
+    .param-box input, .rail-grid .param-box input, .lap-param-box input,
+    #gravitySimSection input[type="number"], #gravitySimSection input[type="text"],
+    #gravitySimSection select { font-size: 16px; }
+
+    .rail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .map-controls { flex-direction: column; align-items: flex-start; gap: 8px; }
+    /* Tables stay horizontally scrollable rather than reflowing: these are
+       genuinely numeric comparisons, and stacking them into cards would lose
+       the column-to-column reading that makes them worth having. */
+    .data-table { font-size: 12px; }
   }
 </style>
 </head>
@@ -715,7 +799,6 @@ body {
           <td height="21" colspan="6"><P>
             <CENTER>
               <p>
-                <title>Untitled Document</title>
                 <script>
 // 'imperial' = distance in miles, primary speed in MPH.
 // 'metric'   = distance in kilometres, primary speed in KM/H.
@@ -792,10 +875,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('lapUnitMetric').addEventListener('click', () => setLapUnit('metric'));
 });
 </script>
-
-</head>
-
-<body>
 
 <hr class="section-rule">
 <div id="gravitySimSection">
@@ -1069,8 +1148,9 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 
   <div class="corners card">
-    <h3>Corners</h3>
-    <p class="card-note">Sorted by how far the prediction sits from recorded reality, not by distance along the course. Location, direction and radius come from GPS heading/curvature, not speed; grip limit and predicted apex come from the forward/backward envelope pass. Actual apex is a validation reference and feeds nothing back into the model. Click a row for load transfer.</p>
+    <h3>Corners &amp; Sectors</h3>
+    <p class="card-note">One row per corner, and one <strong>sector</strong> per corner: the approach plus the corner itself, bounded at corner exits. Every metre belongs to exactly one sector, so the six sector times sum to Run Time. Sorted by <strong>Δt</strong> — time lost or gained — rather than by speed error, since a large km/h miss through a short corner can cost less than a small one down a long sector. Location, direction and radius come from GPS heading/curvature; grip limit and predicted apex from the forward/backward envelope pass. Actual apex and actual sector time are validation references and feed nothing back into the model. Click a row for load transfer.</p>
+    <p class="card-note">Actual sector times are read from the selected run's GPX clock (picked below, under Route Map), not integrated from its speed trace. Timestamps are whole seconds, so a sector boundary falling between two trackpoints carries roughly <strong>±0.5s</strong> — treat Δt under about half a second as agreement, not as a finding.</p>
     <div id="cornerAnalysis"></div>
     <p class="disclaimer-note">⚠ Grip limits, apex speeds and braking figures above are model predictions only — indicative, untested against real braking, and not verified for safety. Do not rely on or act upon them.</p>
   </div>
@@ -1114,7 +1194,21 @@ const elevationProfile = [{"d": 0, "ele": 96.8}, {"d": 1.0, "ele": 96.8}, {"d": 
 // doesn't include one for this device. This is coarser than true 1Hz GPS
 // speed (sample spacing is irregular, 1-9s) but it's now guaranteed to share
 // the exact same distance basis as elevationProfile above.
-const originalRunSpeed = [{"d": 0, "v": 3.67}, {"d": 1.0, "v": 2.93}, {"d": 4.1, "v": 5.83}, {"d": 15.6, "v": 10.94}, {"d": 25.3, "v": 20.17}, {"d": 32.4, "v": 24.03}, {"d": 38.7, "v": 25.52}, {"d": 46.6, "v": 29.1}, {"d": 54.9, "v": 32.76}, {"d": 73.9, "v": 36.51}, {"d": 95.4, "v": 39.48}, {"d": 106.8, "v": 41.92}, {"d": 118.7, "v": 44.39}, {"d": 131.4, "v": 48.05}, {"d": 145.4, "v": 50.33}, {"d": 159.4, "v": 51.7}, {"d": 174.1, "v": 53.62}, {"d": 189.2, "v": 55.28}, {"d": 204.8, "v": 56.63}, {"d": 220.7, "v": 57.69}, {"d": 236.9, "v": 60.34}, {"d": 270.9, "v": 62.73}, {"d": 289.2, "v": 66.0}, {"d": 307.6, "v": 66.2}, {"d": 325.9, "v": 66.21}, {"d": 344.4, "v": 64.21}, {"d": 361.6, "v": 58.75}, {"d": 377.0, "v": 52.06}, {"d": 390.5, "v": 51.94}, {"d": 405.9, "v": 55.31}, {"d": 421.3, "v": 58.0}, {"d": 438.1, "v": 59.18}, {"d": 454.1, "v": 58.85}, {"d": 470.8, "v": 59.6}, {"d": 503.8, "v": 57.64}, {"d": 518.8, "v": 52.44}, {"d": 532.9, "v": 45.08}, {"d": 543.9, "v": 37.03}, {"d": 553.5, "v": 40.17}, {"d": 566.2, "v": 47.63}, {"d": 580.0, "v": 51.07}, {"d": 594.6, "v": 52.35}, {"d": 609.1, "v": 55.52}, {"d": 625.4, "v": 58.62}, {"d": 641.6, "v": 60.03}, {"d": 658.8, "v": 64.64}, {"d": 677.5, "v": 67.53}, {"d": 696.3, "v": 66.32}, {"d": 732.8, "v": 64.1}, {"d": 749.7, "v": 64.89}, {"d": 768.9, "v": 62.54}, {"d": 784.4, "v": 56.65}, {"d": 800.3, "v": 55.3}, {"d": 830.5, "v": 53.04}, {"d": 844.5, "v": 49.07}, {"d": 857.8, "v": 47.09}, {"d": 870.7, "v": 44.48}, {"d": 882.5, "v": 41.71}, {"d": 893.9, "v": 45.03}, {"d": 907.5, "v": 50.86}, {"d": 922.1, "v": 55.35}, {"d": 938.3, "v": 59.01}, {"d": 954.9, "v": 60.09}, {"d": 988.3, "v": 60.6}, {"d": 1005.4, "v": 58.61}, {"d": 1020.9, "v": 54.59}, {"d": 1035.7, "v": 49.66}, {"d": 1048.5, "v": 44.43}, {"d": 1060.4, "v": 42.02}, {"d": 1083.5, "v": 38.62}, {"d": 1092.6, "v": 33.36}, {"d": 1102.0, "v": 34.02}];
+//
+// `t` is elapsed seconds from each run's own first trackpoint — the GPX
+// timestamp, i.e. a measurement, not something re-derived from v. It was
+// originally discarded at parse time, which forced actual sector times to be
+// obtained by integrating dt = dd/v along the trace instead. That integration
+// is systematically short: 85.7-90.0s against measured 87-92s across the five
+// runs, and the whole of that deficit sits in the launch (trapezoidal
+// integration under-reads badly where speed climbs steeply from near-zero over
+// sparse samples — 0-63m alone accounts for -1.11s of the original run's
+// -1.08s total; every other sector agreed to within 0.07s). Sector times are
+// therefore read from `t`, never integrated. Resolution is whole seconds, so a
+// sector boundary interpolated between two points carries roughly ±0.5s.
+// d and v are unchanged — this was a pure addition, verified point-by-point
+// against a fresh parse of the original GPX files before being written in.
+const originalRunSpeed = [{"d": 0, "v": 3.67, "t": 0}, {"d": 1.0, "v": 2.93, "t": 1}, {"d": 4.1, "v": 5.83, "t": 5}, {"d": 15.6, "v": 10.94, "t": 10}, {"d": 25.3, "v": 20.17, "t": 12}, {"d": 32.4, "v": 24.03, "t": 13}, {"d": 38.7, "v": 25.52, "t": 14}, {"d": 46.6, "v": 29.1, "t": 15}, {"d": 54.9, "v": 32.76, "t": 16}, {"d": 73.9, "v": 36.51, "t": 18}, {"d": 95.4, "v": 39.48, "t": 20}, {"d": 106.8, "v": 41.92, "t": 21}, {"d": 118.7, "v": 44.39, "t": 22}, {"d": 131.4, "v": 48.05, "t": 23}, {"d": 145.4, "v": 50.33, "t": 24}, {"d": 159.4, "v": 51.7, "t": 25}, {"d": 174.1, "v": 53.62, "t": 26}, {"d": 189.2, "v": 55.28, "t": 27}, {"d": 204.8, "v": 56.63, "t": 28}, {"d": 220.7, "v": 57.69, "t": 29}, {"d": 236.9, "v": 60.34, "t": 30}, {"d": 270.9, "v": 62.73, "t": 32}, {"d": 289.2, "v": 66.0, "t": 33}, {"d": 307.6, "v": 66.2, "t": 34}, {"d": 325.9, "v": 66.21, "t": 35}, {"d": 344.4, "v": 64.21, "t": 36}, {"d": 361.6, "v": 58.75, "t": 37}, {"d": 377.0, "v": 52.06, "t": 38}, {"d": 390.5, "v": 51.94, "t": 39}, {"d": 405.9, "v": 55.31, "t": 40}, {"d": 421.3, "v": 58.0, "t": 41}, {"d": 438.1, "v": 59.18, "t": 42}, {"d": 454.1, "v": 58.85, "t": 43}, {"d": 470.8, "v": 59.6, "t": 44}, {"d": 503.8, "v": 57.64, "t": 46}, {"d": 518.8, "v": 52.44, "t": 47}, {"d": 532.9, "v": 45.08, "t": 48}, {"d": 543.9, "v": 37.03, "t": 49}, {"d": 553.5, "v": 40.17, "t": 50}, {"d": 566.2, "v": 47.63, "t": 51}, {"d": 580.0, "v": 51.07, "t": 52}, {"d": 594.6, "v": 52.35, "t": 53}, {"d": 609.1, "v": 55.52, "t": 54}, {"d": 625.4, "v": 58.62, "t": 55}, {"d": 641.6, "v": 60.03, "t": 56}, {"d": 658.8, "v": 64.64, "t": 57}, {"d": 677.5, "v": 67.53, "t": 58}, {"d": 696.3, "v": 66.32, "t": 59}, {"d": 732.8, "v": 64.1, "t": 61}, {"d": 749.7, "v": 64.89, "t": 62}, {"d": 768.9, "v": 62.54, "t": 63}, {"d": 784.4, "v": 56.65, "t": 64}, {"d": 800.3, "v": 55.3, "t": 65}, {"d": 830.5, "v": 53.04, "t": 67}, {"d": 844.5, "v": 49.07, "t": 68}, {"d": 857.8, "v": 47.09, "t": 69}, {"d": 870.7, "v": 44.48, "t": 70}, {"d": 882.5, "v": 41.71, "t": 71}, {"d": 893.9, "v": 45.03, "t": 72}, {"d": 907.5, "v": 50.86, "t": 73}, {"d": 922.1, "v": 55.35, "t": 74}, {"d": 938.3, "v": 59.01, "t": 75}, {"d": 954.9, "v": 60.09, "t": 76}, {"d": 988.3, "v": 60.6, "t": 78}, {"d": 1005.4, "v": 58.61, "t": 79}, {"d": 1020.9, "v": 54.59, "t": 80}, {"d": 1035.7, "v": 49.66, "t": 81}, {"d": 1048.5, "v": 44.43, "t": 82}, {"d": 1060.4, "v": 42.02, "t": 83}, {"d": 1083.5, "v": 38.62, "t": 85}, {"d": 1092.6, "v": 33.36, "t": 86}, {"d": 1102.0, "v": 34.02, "t": 87}];
 
 // Raw lat/lon/distance points from GPX (Garmin, 26 Jul 2026 run), used only for
 // corner geometry (heading/curvature) — NOT for speed, which still comes from runsData.
@@ -1135,17 +1229,17 @@ const routePoints = [{"d": 0, "lat": 53.9037901, "lon": -1.486536}, {"d": 1.0, "
 // physical geometry. Still included here in runsData for the chart and
 // general diagnostics, where it's simply another valid pace sample.
 const run2Points = [{"d": 0, "lat": 53.9038159, "lon": -1.4864931}, {"d": 3.3, "lat": 53.9037865, "lon": -1.4864977}, {"d": 9.6, "lat": 53.9038434, "lon": -1.486488}, {"d": 29, "lat": 53.9040123, "lon": -1.4864153}, {"d": 35.1, "lat": 53.904066, "lon": -1.4863997}, {"d": 43.1, "lat": 53.9041382, "lon": -1.4864123}, {"d": 59.4, "lat": 53.9042495, "lon": -1.486574}, {"d": 69, "lat": 53.9043052, "lon": -1.4866852}, {"d": 79.3, "lat": 53.904353, "lon": -1.4868204}, {"d": 79.3, "lat": 53.904353, "lon": -1.4868204}, {"d": 94.8, "lat": 53.9043899, "lon": -1.4870483}, {"d": 107, "lat": 53.9044142, "lon": -1.4872295}, {"d": 119.4, "lat": 53.9044236, "lon": -1.4874183}, {"d": 132.3, "lat": 53.9044259, "lon": -1.4876157}, {"d": 159, "lat": 53.9044126, "lon": -1.4880221}, {"d": 173.8, "lat": 53.9043923, "lon": -1.4882464}, {"d": 189.1, "lat": 53.9043679, "lon": -1.4884753}, {"d": 204.3, "lat": 53.9043427, "lon": -1.4887041}, {"d": 220, "lat": 53.9043148, "lon": -1.4889385}, {"d": 251.7, "lat": 53.9042687, "lon": -1.4894165}, {"d": 283.3, "lat": 53.9042567, "lon": -1.489898}, {"d": 298.7, "lat": 53.9042642, "lon": -1.4901328}, {"d": 313.2, "lat": 53.9042881, "lon": -1.4903497}, {"d": 327.7, "lat": 53.9043217, "lon": -1.4905645}, {"d": 342.2, "lat": 53.904383, "lon": -1.49076}, {"d": 357.2, "lat": 53.9044794, "lon": -1.4909191}, {"d": 370.2, "lat": 53.9045963, "lon": -1.4909394}, {"d": 383.3, "lat": 53.9047132, "lon": -1.4909154}, {"d": 395.7, "lat": 53.9048004, "lon": -1.4907975}, {"d": 408.6, "lat": 53.9048702, "lon": -1.4906411}, {"d": 425.6, "lat": 53.9049344, "lon": -1.4904058}, {"d": 440.5, "lat": 53.904992, "lon": -1.4902002}, {"d": 472.4, "lat": 53.9050992, "lon": -1.4897488}, {"d": 504.7, "lat": 53.9052062, "lon": -1.4892893}, {"d": 519.4, "lat": 53.9052534, "lon": -1.4890801}, {"d": 543.5, "lat": 53.9053641, "lon": -1.4887639}, {"d": 552.3, "lat": 53.9054416, "lon": -1.4887348}, {"d": 560.7, "lat": 53.9055085, "lon": -1.4887936}, {"d": 571.3, "lat": 53.9055815, "lon": -1.4888972}, {"d": 583.3, "lat": 53.9056603, "lon": -1.489022}, {"d": 610.1, "lat": 53.9058738, "lon": -1.489213}, {"d": 624.9, "lat": 53.9060032, "lon": -1.4892633}, {"d": 641.4, "lat": 53.9061504, "lon": -1.4892952}, {"d": 657.9, "lat": 53.9062981, "lon": -1.4893235}, {"d": 674.3, "lat": 53.9064448, "lon": -1.4893505}, {"d": 691.6, "lat": 53.9065994, "lon": -1.4893851}, {"d": 709.6, "lat": 53.906759, "lon": -1.489423}, {"d": 727.1, "lat": 53.9069095, "lon": -1.489505}, {"d": 744.2, "lat": 53.90702, "lon": -1.4896856}, {"d": 760.4, "lat": 53.9071088, "lon": -1.4898824}, {"d": 775.9, "lat": 53.9071054, "lon": -1.4901187}, {"d": 791.6, "lat": 53.9070772, "lon": -1.4903533}, {"d": 807.6, "lat": 53.9070224, "lon": -1.4905785}, {"d": 822.7, "lat": 53.9069628, "lon": -1.4907869}, {"d": 864.7, "lat": 53.9068459, "lon": -1.4913961}, {"d": 878, "lat": 53.9069105, "lon": -1.4915665}, {"d": 890.3, "lat": 53.9069985, "lon": -1.4916801}, {"d": 901.7, "lat": 53.9070981, "lon": -1.4917255}, {"d": 916.2, "lat": 53.9072267, "lon": -1.491756}, {"d": 930.1, "lat": 53.9073496, "lon": -1.4917946}, {"d": 945.4, "lat": 53.9074861, "lon": -1.4918281}, {"d": 962, "lat": 53.9076336, "lon": -1.4918672}, {"d": 995, "lat": 53.9079181, "lon": -1.4920096}, {"d": 1023.6, "lat": 53.9080735, "lon": -1.4923585}, {"d": 1049.8, "lat": 53.9080701, "lon": -1.492757}, {"d": 1061, "lat": 53.9079778, "lon": -1.4928277}, {"d": 1072.4, "lat": 53.9078755, "lon": -1.4928108}, {"d": 1093.6, "lat": 53.9076852, "lon": -1.492789}, {"d": 1101, "lat": 53.9076294, "lon": -1.4928481}, {"d": 1107.6, "lat": 53.9075825, "lon": -1.4929118}, {"d": 1112.1, "lat": 53.907557, "lon": -1.4929643}];
-const run2Speed = [{"d": 0, "v": 3.93}, {"d": 3.3, "v": 8.67}, {"d": 9.6, "v": 30.88}, {"d": 29, "v": 30.51}, {"d": 35.1, "v": 25.41}, {"d": 43.1, "v": 29.23}, {"d": 59.4, "v": 31.02}, {"d": 69, "v": 35.8}, {"d": 79.3, "v": 18.59}, {"d": 79.3, "v": 27.87}, {"d": 94.8, "v": 49.78}, {"d": 107, "v": 44.25}, {"d": 119.4, "v": 45.63}, {"d": 132.3, "v": 47.52}, {"d": 159, "v": 49.83}, {"d": 173.8, "v": 54.19}, {"d": 189.1, "v": 54.88}, {"d": 204.3, "v": 55.64}, {"d": 220, "v": 56.87}, {"d": 251.7, "v": 56.97}, {"d": 283.3, "v": 56.37}, {"d": 298.7, "v": 53.75}, {"d": 313.2, "v": 52.22}, {"d": 327.7, "v": 52.31}, {"d": 342.2, "v": 53.02}, {"d": 357.2, "v": 50.44}, {"d": 370.2, "v": 47.08}, {"d": 383.3, "v": 45.88}, {"d": 395.7, "v": 45.46}, {"d": 408.6, "v": 53.71}, {"d": 425.6, "v": 57.42}, {"d": 440.5, "v": 56.15}, {"d": 472.4, "v": 57.82}, {"d": 504.7, "v": 56.45}, {"d": 519.4, "v": 46.53}, {"d": 543.5, "v": 39.51}, {"d": 552.3, "v": 30.97}, {"d": 560.7, "v": 34.12}, {"d": 571.3, "v": 40.62}, {"d": 583.3, "v": 46.58}, {"d": 610.1, "v": 49.91}, {"d": 624.9, "v": 56.27}, {"d": 641.4, "v": 59.45}, {"d": 657.9, "v": 59.28}, {"d": 674.3, "v": 60.75}, {"d": 691.6, "v": 63.48}, {"d": 709.6, "v": 63.9}, {"d": 727.1, "v": 62.34}, {"d": 744.2, "v": 59.92}, {"d": 760.4, "v": 57.09}, {"d": 775.9, "v": 56.1}, {"d": 791.6, "v": 56.96}, {"d": 807.6, "v": 56.05}, {"d": 822.7, "v": 51.43}, {"d": 864.7, "v": 49.71}, {"d": 878, "v": 46.02}, {"d": 890.3, "v": 42.79}, {"d": 901.7, "v": 46.64}, {"d": 916.2, "v": 51}, {"d": 930.1, "v": 52.61}, {"d": 945.4, "v": 57.48}, {"d": 962, "v": 59.5}, {"d": 995, "v": 55.47}, {"d": 1023.6, "v": 49.28}, {"d": 1049.8, "v": 44.84}, {"d": 1061, "v": 40.84}, {"d": 1072.4, "v": 39.17}, {"d": 1093.6, "v": 34.22}, {"d": 1101, "v": 25.18}, {"d": 1107.6, "v": 20.04}, {"d": 1112.1, "v": 16.05}];
+const run2Speed = [{"d": 0, "v": 3.93, "t": 0}, {"d": 3.3, "v": 8.67, "t": 3}, {"d": 9.6, "v": 30.88, "t": 4}, {"d": 29, "v": 30.51, "t": 6}, {"d": 35.1, "v": 25.41, "t": 7}, {"d": 43.1, "v": 29.23, "t": 8}, {"d": 59.4, "v": 31.02, "t": 10}, {"d": 69, "v": 35.8, "t": 11}, {"d": 79.3, "v": 18.59, "t": 12}, {"d": 79.3, "v": 27.87, "t": 13}, {"d": 94.8, "v": 49.78, "t": 14}, {"d": 107, "v": 44.25, "t": 15}, {"d": 119.4, "v": 45.63, "t": 16}, {"d": 132.3, "v": 47.52, "t": 17}, {"d": 159, "v": 49.83, "t": 19}, {"d": 173.8, "v": 54.19, "t": 20}, {"d": 189.1, "v": 54.88, "t": 21}, {"d": 204.3, "v": 55.64, "t": 22}, {"d": 220, "v": 56.87, "t": 23}, {"d": 251.7, "v": 56.97, "t": 25}, {"d": 283.3, "v": 56.37, "t": 27}, {"d": 298.7, "v": 53.75, "t": 28}, {"d": 313.2, "v": 52.22, "t": 29}, {"d": 327.7, "v": 52.31, "t": 30}, {"d": 342.2, "v": 53.02, "t": 31}, {"d": 357.2, "v": 50.44, "t": 32}, {"d": 370.2, "v": 47.08, "t": 33}, {"d": 383.3, "v": 45.88, "t": 34}, {"d": 395.7, "v": 45.46, "t": 35}, {"d": 408.6, "v": 53.71, "t": 36}, {"d": 425.6, "v": 57.42, "t": 37}, {"d": 440.5, "v": 56.15, "t": 38}, {"d": 472.4, "v": 57.82, "t": 40}, {"d": 504.7, "v": 56.45, "t": 42}, {"d": 519.4, "v": 46.53, "t": 43}, {"d": 543.5, "v": 39.51, "t": 45}, {"d": 552.3, "v": 30.97, "t": 46}, {"d": 560.7, "v": 34.12, "t": 47}, {"d": 571.3, "v": 40.62, "t": 48}, {"d": 583.3, "v": 46.58, "t": 49}, {"d": 610.1, "v": 49.91, "t": 51}, {"d": 624.9, "v": 56.27, "t": 52}, {"d": 641.4, "v": 59.45, "t": 53}, {"d": 657.9, "v": 59.28, "t": 54}, {"d": 674.3, "v": 60.75, "t": 55}, {"d": 691.6, "v": 63.48, "t": 56}, {"d": 709.6, "v": 63.9, "t": 57}, {"d": 727.1, "v": 62.34, "t": 58}, {"d": 744.2, "v": 59.92, "t": 59}, {"d": 760.4, "v": 57.09, "t": 60}, {"d": 775.9, "v": 56.1, "t": 61}, {"d": 791.6, "v": 56.96, "t": 62}, {"d": 807.6, "v": 56.05, "t": 63}, {"d": 822.7, "v": 51.43, "t": 64}, {"d": 864.7, "v": 49.71, "t": 67}, {"d": 878, "v": 46.02, "t": 68}, {"d": 890.3, "v": 42.79, "t": 69}, {"d": 901.7, "v": 46.64, "t": 70}, {"d": 916.2, "v": 51, "t": 71}, {"d": 930.1, "v": 52.61, "t": 72}, {"d": 945.4, "v": 57.48, "t": 73}, {"d": 962, "v": 59.5, "t": 74}, {"d": 995, "v": 55.47, "t": 76}, {"d": 1023.6, "v": 49.28, "t": 78}, {"d": 1049.8, "v": 44.84, "t": 80}, {"d": 1061, "v": 40.84, "t": 81}, {"d": 1072.4, "v": 39.17, "t": 82}, {"d": 1093.6, "v": 34.22, "t": 84}, {"d": 1101, "v": 25.18, "t": 85}, {"d": 1107.6, "v": 20.04, "t": 86}, {"d": 1112.1, "v": 16.05, "t": 87}];
 
 const run3Points = [{"d": 0, "lat": 53.9037989, "lon": -1.486567}, {"d": 1.3, "lat": 53.9037912, "lon": -1.4865528}, {"d": 8.7, "lat": 53.9038224, "lon": -1.4864521}, {"d": 25.5, "lat": 53.9039423, "lon": -1.4862952}, {"d": 39.5, "lat": 53.9040644, "lon": -1.4863419}, {"d": 47.4, "lat": 53.9041226, "lon": -1.4864114}, {"d": 66.4, "lat": 53.9042498, "lon": -1.4866049}, {"d": 75.9, "lat": 53.9042972, "lon": -1.4867262}, {"d": 86.6, "lat": 53.9043405, "lon": -1.4868721}, {"d": 98.3, "lat": 53.9043708, "lon": -1.4870426}, {"d": 110.8, "lat": 53.9043906, "lon": -1.4872309}, {"d": 137.2, "lat": 53.9043982, "lon": -1.4876336}, {"d": 150.7, "lat": 53.9043905, "lon": -1.4878385}, {"d": 164.6, "lat": 53.9043778, "lon": -1.4880511}, {"d": 179.5, "lat": 53.9043687, "lon": -1.488277}, {"d": 194.6, "lat": 53.9043511, "lon": -1.4885051}, {"d": 209.7, "lat": 53.9043317, "lon": -1.488734}, {"d": 240.5, "lat": 53.9042902, "lon": -1.4891982}, {"d": 272.1, "lat": 53.9042716, "lon": -1.4896801}, {"d": 288.2, "lat": 53.9042714, "lon": -1.489926}, {"d": 305.9, "lat": 53.9042956, "lon": -1.4901923}, {"d": 323.8, "lat": 53.9043314, "lon": -1.4904597}, {"d": 340.2, "lat": 53.9043958, "lon": -1.4906842}, {"d": 355.2, "lat": 53.9044837, "lon": -1.4908584}, {"d": 368.4, "lat": 53.9045893, "lon": -1.49095}, {"d": 381.8, "lat": 53.9047097, "lon": -1.4909506}, {"d": 394.8, "lat": 53.904786, "lon": -1.4908004}, {"d": 408.2, "lat": 53.904863, "lon": -1.4906421}, {"d": 422.5, "lat": 53.90493, "lon": -1.4904566}, {"d": 453.3, "lat": 53.9050392, "lon": -1.4900243}, {"d": 469.4, "lat": 53.9050786, "lon": -1.4897881}, {"d": 502.9, "lat": 53.9051707, "lon": -1.4893001}, {"d": 531.9, "lat": 53.905273, "lon": -1.4888935}, {"d": 544.8, "lat": 53.9053715, "lon": -1.4887904}, {"d": 564.3, "lat": 53.9055461, "lon": -1.4888275}, {"d": 601.8, "lat": 53.9058177, "lon": -1.4891666}, {"d": 615.8, "lat": 53.9059398, "lon": -1.4892163}, {"d": 631.4, "lat": 53.9060783, "lon": -1.4892547}, {"d": 647.4, "lat": 53.9062217, "lon": -1.4892819}, {"d": 664.6, "lat": 53.906375, "lon": -1.4893067}, {"d": 681.9, "lat": 53.9065302, "lon": -1.4893389}, {"d": 700.9, "lat": 53.9066987, "lon": -1.4893813}, {"d": 719.4, "lat": 53.9068599, "lon": -1.4894547}, {"d": 738.5, "lat": 53.9069975, "lon": -1.489628}, {"d": 754.9, "lat": 53.9070778, "lon": -1.4898376}, {"d": 769.4, "lat": 53.9070784, "lon": -1.4900587}, {"d": 784, "lat": 53.9070547, "lon": -1.4902786}, {"d": 827.8, "lat": 53.9068975, "lon": -1.4908917}, {"d": 855.2, "lat": 53.9068242, "lon": -1.4912906}, {"d": 869, "lat": 53.9068601, "lon": -1.4914923}, {"d": 880.1, "lat": 53.9069271, "lon": -1.4916182}, {"d": 890.1, "lat": 53.9070119, "lon": -1.4916702}, {"d": 902.2, "lat": 53.9071195, "lon": -1.4916988}, {"d": 915.9, "lat": 53.9072412, "lon": -1.4917264}, {"d": 930.7, "lat": 53.9073724, "lon": -1.4917643}, {"d": 946.4, "lat": 53.9075114, "lon": -1.4918055}, {"d": 963.6, "lat": 53.9076638, "lon": -1.4918513}, {"d": 980.9, "lat": 53.9078132, "lon": -1.4919264}, {"d": 998.1, "lat": 53.9079444, "lon": -1.4920669}, {"d": 1013.6, "lat": 53.9080324, "lon": -1.4922487}, {"d": 1027.9, "lat": 53.908069, "lon": -1.4924582}, {"d": 1039.8, "lat": 53.9080368, "lon": -1.4926326}, {"d": 1051.6, "lat": 53.9079768, "lon": -1.4927811}, {"d": 1062.3, "lat": 53.9078833, "lon": -1.4928154}, {"d": 1072.6, "lat": 53.9077911, "lon": -1.4928017}, {"d": 1090.8, "lat": 53.9076277, "lon": -1.4928193}, {"d": 1096.9, "lat": 53.9075773, "lon": -1.4928576}];
-const run3Speed = [{"d": 0, "v": 4.55}, {"d": 1.3, "v": 4.48}, {"d": 8.7, "v": 8.74}, {"d": 25.5, "v": 18.45}, {"d": 39.5, "v": 26.2}, {"d": 47.4, "v": 32.29}, {"d": 66.4, "v": 34.24}, {"d": 75.9, "v": 36.43}, {"d": 86.6, "v": 40.25}, {"d": 98.3, "v": 43.56}, {"d": 110.8, "v": 46.71}, {"d": 137.2, "v": 47.81}, {"d": 150.7, "v": 49.41}, {"d": 164.6, "v": 51.89}, {"d": 179.5, "v": 53.83}, {"d": 194.6, "v": 54.4}, {"d": 209.7, "v": 55.08}, {"d": 240.5, "v": 56.15}, {"d": 272.1, "v": 57.3}, {"d": 288.2, "v": 60.77}, {"d": 305.9, "v": 64.1}, {"d": 323.8, "v": 61.78}, {"d": 340.2, "v": 56.49}, {"d": 355.2, "v": 50.79}, {"d": 368.4, "v": 47.83}, {"d": 381.8, "v": 47.48}, {"d": 394.8, "v": 47.6}, {"d": 408.2, "v": 49.86}, {"d": 422.5, "v": 54.08}, {"d": 453.3, "v": 56.28}, {"d": 469.4, "v": 59.58}, {"d": 502.9, "v": 56.28}, {"d": 531.9, "v": 50.19}, {"d": 544.8, "v": 38.93}, {"d": 564.3, "v": 41.09}, {"d": 601.8, "v": 46.3}, {"d": 615.8, "v": 53.22}, {"d": 631.4, "v": 56.98}, {"d": 647.4, "v": 59.71}, {"d": 664.6, "v": 62.11}, {"d": 681.9, "v": 65.37}, {"d": 700.9, "v": 67.51}, {"d": 719.4, "v": 67.7}, {"d": 738.5, "v": 63.76}, {"d": 754.9, "v": 55.55}, {"d": 769.4, "v": 52.43}, {"d": 784, "v": 52.6}, {"d": 827.8, "v": 51.25}, {"d": 855.2, "v": 49.4}, {"d": 869, "v": 44.85}, {"d": 880.1, "v": 38.05}, {"d": 890.1, "v": 39.84}, {"d": 902.2, "v": 46.38}, {"d": 915.9, "v": 51.21}, {"d": 930.7, "v": 54.87}, {"d": 946.4, "v": 59.23}, {"d": 963.6, "v": 62.17}, {"d": 980.9, "v": 62.23}, {"d": 998.1, "v": 58.79}, {"d": 1013.6, "v": 53.51}, {"d": 1027.9, "v": 47.31}, {"d": 1039.8, "v": 42.78}, {"d": 1051.6, "v": 40.39}, {"d": 1062.3, "v": 37.68}, {"d": 1072.6, "v": 34.19}, {"d": 1090.8, "v": 29.21}, {"d": 1096.9, "v": 22.1}];
+const run3Speed = [{"d": 0, "v": 4.55, "t": 0}, {"d": 1.3, "v": 4.48, "t": 1}, {"d": 8.7, "v": 8.74, "t": 7}, {"d": 25.5, "v": 18.45, "t": 11}, {"d": 39.5, "v": 26.2, "t": 13}, {"d": 47.4, "v": 32.29, "t": 14}, {"d": 66.4, "v": 34.24, "t": 16}, {"d": 75.9, "v": 36.43, "t": 17}, {"d": 86.6, "v": 40.25, "t": 18}, {"d": 98.3, "v": 43.56, "t": 19}, {"d": 110.8, "v": 46.71, "t": 20}, {"d": 137.2, "v": 47.81, "t": 22}, {"d": 150.7, "v": 49.41, "t": 23}, {"d": 164.6, "v": 51.89, "t": 24}, {"d": 179.5, "v": 53.83, "t": 25}, {"d": 194.6, "v": 54.4, "t": 26}, {"d": 209.7, "v": 55.08, "t": 27}, {"d": 240.5, "v": 56.15, "t": 29}, {"d": 272.1, "v": 57.3, "t": 31}, {"d": 288.2, "v": 60.77, "t": 32}, {"d": 305.9, "v": 64.1, "t": 33}, {"d": 323.8, "v": 61.78, "t": 34}, {"d": 340.2, "v": 56.49, "t": 35}, {"d": 355.2, "v": 50.79, "t": 36}, {"d": 368.4, "v": 47.83, "t": 37}, {"d": 381.8, "v": 47.48, "t": 38}, {"d": 394.8, "v": 47.6, "t": 39}, {"d": 408.2, "v": 49.86, "t": 40}, {"d": 422.5, "v": 54.08, "t": 41}, {"d": 453.3, "v": 56.28, "t": 43}, {"d": 469.4, "v": 59.58, "t": 44}, {"d": 502.9, "v": 56.28, "t": 46}, {"d": 531.9, "v": 50.19, "t": 48}, {"d": 544.8, "v": 38.93, "t": 49}, {"d": 564.3, "v": 41.09, "t": 51}, {"d": 601.8, "v": 46.3, "t": 54}, {"d": 615.8, "v": 53.22, "t": 55}, {"d": 631.4, "v": 56.98, "t": 56}, {"d": 647.4, "v": 59.71, "t": 57}, {"d": 664.6, "v": 62.11, "t": 58}, {"d": 681.9, "v": 65.37, "t": 59}, {"d": 700.9, "v": 67.51, "t": 60}, {"d": 719.4, "v": 67.7, "t": 61}, {"d": 738.5, "v": 63.76, "t": 62}, {"d": 754.9, "v": 55.55, "t": 63}, {"d": 769.4, "v": 52.43, "t": 64}, {"d": 784, "v": 52.6, "t": 65}, {"d": 827.8, "v": 51.25, "t": 68}, {"d": 855.2, "v": 49.4, "t": 70}, {"d": 869, "v": 44.85, "t": 71}, {"d": 880.1, "v": 38.05, "t": 72}, {"d": 890.1, "v": 39.84, "t": 73}, {"d": 902.2, "v": 46.38, "t": 74}, {"d": 915.9, "v": 51.21, "t": 75}, {"d": 930.7, "v": 54.87, "t": 76}, {"d": 946.4, "v": 59.23, "t": 77}, {"d": 963.6, "v": 62.17, "t": 78}, {"d": 980.9, "v": 62.23, "t": 79}, {"d": 998.1, "v": 58.79, "t": 80}, {"d": 1013.6, "v": 53.51, "t": 81}, {"d": 1027.9, "v": 47.31, "t": 82}, {"d": 1039.8, "v": 42.78, "t": 83}, {"d": 1051.6, "v": 40.39, "t": 84}, {"d": 1062.3, "v": 37.68, "t": 85}, {"d": 1072.6, "v": 34.19, "t": 86}, {"d": 1090.8, "v": 29.21, "t": 88}, {"d": 1096.9, "v": 22.1, "t": 89}];
 
 // run4 (activity_23738438725): excluded from geometry/μ, see note above.
 const run4Points = [{"d": 0, "lat": 53.9038297, "lon": -1.4865592}, {"d": 0.4, "lat": 53.9038322, "lon": -1.4865538}, {"d": 6.2, "lat": 53.9038489, "lon": -1.4864705}, {"d": 22.6, "lat": 53.9039705, "lon": -1.486329}, {"d": 37.8, "lat": 53.9041051, "lon": -1.4863697}, {"d": 45.9, "lat": 53.9041679, "lon": -1.486431}, {"d": 54.9, "lat": 53.9042324, "lon": -1.4865147}, {"d": 73.9, "lat": 53.9043415, "lon": -1.4867387}, {"d": 95.4, "lat": 53.9044012, "lon": -1.4870506}, {"d": 107.5, "lat": 53.9044189, "lon": -1.4872332}, {"d": 132.9, "lat": 53.9044311, "lon": -1.4876198}, {"d": 160.1, "lat": 53.9044155, "lon": -1.4880343}, {"d": 174.3, "lat": 53.9043965, "lon": -1.4882478}, {"d": 189.2, "lat": 53.9043785, "lon": -1.4884739}, {"d": 204.5, "lat": 53.9043585, "lon": -1.4887054}, {"d": 220.2, "lat": 53.9043366, "lon": -1.4889415}, {"d": 251.8, "lat": 53.9043019, "lon": -1.4894212}, {"d": 285.6, "lat": 53.9042962, "lon": -1.4899363}, {"d": 303, "lat": 53.9043349, "lon": -1.4901933}, {"d": 319.4, "lat": 53.9043704, "lon": -1.4904369}, {"d": 335.1, "lat": 53.9044336, "lon": -1.4906508}, {"d": 349.9, "lat": 53.9045197, "lon": -1.4908232}, {"d": 361.7, "lat": 53.9046204, "lon": -1.4908812}, {"d": 373.6, "lat": 53.9047207, "lon": -1.4908206}, {"d": 386.8, "lat": 53.904813, "lon": -1.4906933}, {"d": 400.6, "lat": 53.9048815, "lon": -1.4905165}, {"d": 415, "lat": 53.9049253, "lon": -1.4903097}, {"d": 430.4, "lat": 53.9049758, "lon": -1.490092}, {"d": 445.8, "lat": 53.905021, "lon": -1.4898701}, {"d": 461.6, "lat": 53.9050686, "lon": -1.4896421}, {"d": 477.1, "lat": 53.9051177, "lon": -1.4894212}, {"d": 505.1, "lat": 53.9052296, "lon": -1.4890374}, {"d": 516.6, "lat": 53.9052926, "lon": -1.4888978}, {"d": 531.1, "lat": 53.9053852, "lon": -1.4887434}, {"d": 541.4, "lat": 53.9054782, "lon": -1.4887388}, {"d": 568.5, "lat": 53.9056635, "lon": -1.4890071}, {"d": 579.2, "lat": 53.9057447, "lon": -1.489096}, {"d": 591.6, "lat": 53.9058485, "lon": -1.489163}, {"d": 606.6, "lat": 53.90598, "lon": -1.4892181}, {"d": 623.4, "lat": 53.9061278, "lon": -1.4892669}, {"d": 642.4, "lat": 53.9062959, "lon": -1.4893238}, {"d": 661.8, "lat": 53.9064637, "lon": -1.4894017}, {"d": 680.8, "lat": 53.9066229, "lon": -1.4895077}, {"d": 702.9, "lat": 53.9067907, "lon": -1.4896892}, {"d": 719.1, "lat": 53.9068505, "lon": -1.4899136}, {"d": 751.2, "lat": 53.9070606, "lon": -1.4902511}, {"d": 776.7, "lat": 53.9071203, "lon": -1.4906271}, {"d": 812.9, "lat": 53.9069878, "lon": -1.4911313}, {"d": 838.2, "lat": 53.907038, "lon": -1.4915085}, {"d": 846.2, "lat": 53.9070702, "lon": -1.4916169}, {"d": 853.3, "lat": 53.9071333, "lon": -1.4916378}, {"d": 866.5, "lat": 53.9072479, "lon": -1.4916884}, {"d": 881.8, "lat": 53.907383, "lon": -1.4917334}, {"d": 898.7, "lat": 53.9075311, "lon": -1.4917904}, {"d": 916.3, "lat": 53.9076828, "lon": -1.4918661}, {"d": 934.5, "lat": 53.9078311, "lon": -1.4919842}, {"d": 947, "lat": 53.9079137, "lon": -1.4921127}, {"d": 960.2, "lat": 53.9079944, "lon": -1.4922612}, {"d": 981.2, "lat": 53.9080892, "lon": -1.4925394}, {"d": 991.9, "lat": 53.9081233, "lon": -1.4926915}, {"d": 1009, "lat": 53.9079824, "lon": -1.4927947}, {"d": 1036.9, "lat": 53.9077316, "lon": -1.4927871}, {"d": 1046.9, "lat": 53.9076446, "lon": -1.492827}, {"d": 1062.6, "lat": 53.9075313, "lon": -1.4929703}, {"d": 1070.2, "lat": 53.9075099, "lon": -1.4930799}, {"d": 1072, "lat": 53.9075052, "lon": -1.4931067}];
-const run4Speed = [{"d": 0, "v": 1.62}, {"d": 0.4, "v": 3.73}, {"d": 6.2, "v": 8.86}, {"d": 22.6, "v": 18.96}, {"d": 37.8, "v": 27.91}, {"d": 45.9, "v": 30.75}, {"d": 54.9, "v": 33.68}, {"d": 73.9, "v": 36.47}, {"d": 95.4, "v": 40.33}, {"d": 107.5, "v": 44.98}, {"d": 132.9, "v": 47.32}, {"d": 160.1, "v": 49.62}, {"d": 174.3, "v": 52.36}, {"d": 189.2, "v": 54.49}, {"d": 204.5, "v": 55.78}, {"d": 220.2, "v": 56.78}, {"d": 251.8, "v": 58.87}, {"d": 285.6, "v": 61.36}, {"d": 303, "v": 60.87}, {"d": 319.4, "v": 57.81}, {"d": 335.1, "v": 54.87}, {"d": 349.9, "v": 47.94}, {"d": 361.7, "v": 42.59}, {"d": 373.6, "v": 45.1}, {"d": 386.8, "v": 48.76}, {"d": 400.6, "v": 50.87}, {"d": 415, "v": 53.51}, {"d": 430.4, "v": 55.27}, {"d": 445.8, "v": 56.21}, {"d": 461.6, "v": 56.37}, {"d": 477.1, "v": 52.22}, {"d": 505.1, "v": 47.48}, {"d": 516.6, "v": 46.71}, {"d": 531.1, "v": 29.73}, {"d": 541.4, "v": 33.68}, {"d": 568.5, "v": 45.39}, {"d": 579.2, "v": 41.56}, {"d": 591.6, "v": 49.33}, {"d": 606.6, "v": 57.26}, {"d": 623.4, "v": 64.45}, {"d": 642.4, "v": 69.12}, {"d": 661.8, "v": 69.04}, {"d": 680.8, "v": 74.05}, {"d": 702.9, "v": 45.91}, {"d": 719.1, "v": 34.77}, {"d": 751.2, "v": 41.53}, {"d": 776.7, "v": 55.51}, {"d": 812.9, "v": 55.35}, {"d": 838.2, "v": 39.94}, {"d": 846.2, "v": 27.18}, {"d": 853.3, "v": 36.57}, {"d": 866.5, "v": 51.26}, {"d": 881.8, "v": 57.96}, {"d": 898.7, "v": 62.03}, {"d": 916.3, "v": 64.43}, {"d": 934.5, "v": 55.22}, {"d": 947, "v": 46.24}, {"d": 960.2, "v": 41.15}, {"d": 981.2, "v": 38.05}, {"d": 991.9, "v": 49.9}, {"d": 1009, "v": 53.96}, {"d": 1036.9, "v": 45.51}, {"d": 1046.9, "v": 30.87}, {"d": 1062.6, "v": 20.94}, {"d": 1070.2, "v": 11.27}, {"d": 1072, "v": 6.6}];
+const run4Speed = [{"d": 0, "v": 1.62, "t": 0}, {"d": 0.4, "v": 3.73, "t": 1}, {"d": 6.2, "v": 8.86, "t": 6}, {"d": 22.6, "v": 18.96, "t": 10}, {"d": 37.8, "v": 27.91, "t": 12}, {"d": 45.9, "v": 30.75, "t": 13}, {"d": 54.9, "v": 33.68, "t": 14}, {"d": 73.9, "v": 36.47, "t": 16}, {"d": 95.4, "v": 40.33, "t": 18}, {"d": 107.5, "v": 44.98, "t": 19}, {"d": 132.9, "v": 47.32, "t": 21}, {"d": 160.1, "v": 49.62, "t": 23}, {"d": 174.3, "v": 52.36, "t": 24}, {"d": 189.2, "v": 54.49, "t": 25}, {"d": 204.5, "v": 55.78, "t": 26}, {"d": 220.2, "v": 56.78, "t": 27}, {"d": 251.8, "v": 58.87, "t": 29}, {"d": 285.6, "v": 61.36, "t": 31}, {"d": 303, "v": 60.87, "t": 32}, {"d": 319.4, "v": 57.81, "t": 33}, {"d": 335.1, "v": 54.87, "t": 34}, {"d": 349.9, "v": 47.94, "t": 35}, {"d": 361.7, "v": 42.59, "t": 36}, {"d": 373.6, "v": 45.1, "t": 37}, {"d": 386.8, "v": 48.76, "t": 38}, {"d": 400.6, "v": 50.87, "t": 39}, {"d": 415, "v": 53.51, "t": 40}, {"d": 430.4, "v": 55.27, "t": 41}, {"d": 445.8, "v": 56.21, "t": 42}, {"d": 461.6, "v": 56.37, "t": 43}, {"d": 477.1, "v": 52.22, "t": 44}, {"d": 505.1, "v": 47.48, "t": 46}, {"d": 516.6, "v": 46.71, "t": 47}, {"d": 531.1, "v": 29.73, "t": 48}, {"d": 541.4, "v": 33.68, "t": 50}, {"d": 568.5, "v": 45.39, "t": 52}, {"d": 579.2, "v": 41.56, "t": 53}, {"d": 591.6, "v": 49.33, "t": 54}, {"d": 606.6, "v": 57.26, "t": 55}, {"d": 623.4, "v": 64.45, "t": 56}, {"d": 642.4, "v": 69.12, "t": 57}, {"d": 661.8, "v": 69.04, "t": 58}, {"d": 680.8, "v": 74.05, "t": 59}, {"d": 702.9, "v": 45.91, "t": 60}, {"d": 719.1, "v": 34.77, "t": 62}, {"d": 751.2, "v": 41.53, "t": 65}, {"d": 776.7, "v": 55.51, "t": 67}, {"d": 812.9, "v": 55.35, "t": 69}, {"d": 838.2, "v": 39.94, "t": 71}, {"d": 846.2, "v": 27.18, "t": 72}, {"d": 853.3, "v": 36.57, "t": 73}, {"d": 866.5, "v": 51.26, "t": 74}, {"d": 881.8, "v": 57.96, "t": 75}, {"d": 898.7, "v": 62.03, "t": 76}, {"d": 916.3, "v": 64.43, "t": 77}, {"d": 934.5, "v": 55.22, "t": 78}, {"d": 947, "v": 46.24, "t": 79}, {"d": 960.2, "v": 41.15, "t": 80}, {"d": 981.2, "v": 38.05, "t": 82}, {"d": 991.9, "v": 49.9, "t": 83}, {"d": 1009, "v": 53.96, "t": 84}, {"d": 1036.9, "v": 45.51, "t": 86}, {"d": 1046.9, "v": 30.87, "t": 87}, {"d": 1062.6, "v": 20.94, "t": 89}, {"d": 1070.2, "v": 11.27, "t": 91}, {"d": 1072, "v": 6.6, "t": 92}];
 
 const run5Points = [{"d": 0, "lat": 53.9037828, "lon": -1.4864967}, {"d": 1.7, "lat": 53.9037675, "lon": -1.4865001}, {"d": 8, "lat": 53.9038048, "lon": -1.4864284}, {"d": 26.6, "lat": 53.9039577, "lon": -1.4863124}, {"d": 34.2, "lat": 53.9040254, "lon": -1.4863237}, {"d": 41.7, "lat": 53.904086, "lon": -1.486374}, {"d": 50.9, "lat": 53.904156, "lon": -1.4864498}, {"d": 60.9, "lat": 53.9042257, "lon": -1.4865465}, {"d": 71.7, "lat": 53.9042925, "lon": -1.4866665}, {"d": 83.1, "lat": 53.9043509, "lon": -1.4868093}, {"d": 94.2, "lat": 53.9043883, "lon": -1.4869664}, {"d": 105.7, "lat": 53.9044145, "lon": -1.4871363}, {"d": 118, "lat": 53.9044296, "lon": -1.4873222}, {"d": 131.3, "lat": 53.9044321, "lon": -1.4875252}, {"d": 159.1, "lat": 53.9044225, "lon": -1.4879495}, {"d": 173.8, "lat": 53.9044066, "lon": -1.4881715}, {"d": 188.2, "lat": 53.9043896, "lon": -1.4883903}, {"d": 203.3, "lat": 53.9043697, "lon": -1.4886175}, {"d": 218.6, "lat": 53.9043468, "lon": -1.488848}, {"d": 234.1, "lat": 53.9043231, "lon": -1.4890817}, {"d": 265.9, "lat": 53.9042906, "lon": -1.4895639}, {"d": 316.4, "lat": 53.9043171, "lon": -1.4903325}, {"d": 333.3, "lat": 53.9043723, "lon": -1.4905733}, {"d": 349, "lat": 53.9044569, "lon": -1.4907656}, {"d": 363.3, "lat": 53.9045655, "lon": -1.4908818}, {"d": 377.6, "lat": 53.9046939, "lon": -1.4908919}, {"d": 393, "lat": 53.904802, "lon": -1.4907453}, {"d": 407.6, "lat": 53.9048536, "lon": -1.4905394}, {"d": 424, "lat": 53.904917, "lon": -1.490313}, {"d": 440.2, "lat": 53.9049761, "lon": -1.4900877}, {"d": 456.4, "lat": 53.9050292, "lon": -1.4898574}, {"d": 488.9, "lat": 53.9051411, "lon": -1.489399}, {"d": 534.2, "lat": 53.9053078, "lon": -1.4887675}, {"d": 546.7, "lat": 53.9054091, "lon": -1.4886869}, {"d": 555.4, "lat": 53.9054846, "lon": -1.4886503}, {"d": 568.8, "lat": 53.9055596, "lon": -1.4888113}, {"d": 581.6, "lat": 53.9056353, "lon": -1.4889584}, {"d": 595.4, "lat": 53.9057363, "lon": -1.4890802}, {"d": 608.5, "lat": 53.9058454, "lon": -1.4891561}, {"d": 623.7, "lat": 53.9059781, "lon": -1.4892095}, {"d": 639.8, "lat": 53.9061214, "lon": -1.4892494}, {"d": 657, "lat": 53.9062713, "lon": -1.4893118}, {"d": 674.6, "lat": 53.9064249, "lon": -1.4893744}, {"d": 692.7, "lat": 53.9065805, "lon": -1.4894557}, {"d": 711.2, "lat": 53.9067285, "lon": -1.4895846}, {"d": 733.6, "lat": 53.906909, "lon": -1.4897394}, {"d": 747.7, "lat": 53.9070064, "lon": -1.4898762}, {"d": 757.1, "lat": 53.9070782, "lon": -1.489952}, {"d": 761.4, "lat": 53.9070937, "lon": -1.4900116}, {"d": 767.6, "lat": 53.9071013, "lon": -1.4901053}, {"d": 780.8, "lat": 53.9070816, "lon": -1.4903041}, {"d": 797.5, "lat": 53.9070377, "lon": -1.4905489}, {"d": 845.1, "lat": 53.9069562, "lon": -1.4912613}, {"d": 855.7, "lat": 53.9069592, "lon": -1.4914238}, {"d": 864.3, "lat": 53.9070002, "lon": -1.4915354}, {"d": 872.2, "lat": 53.9070602, "lon": -1.4915998}, {"d": 881.7, "lat": 53.9071432, "lon": -1.4916298}, {"d": 896.5, "lat": 53.9072753, "lon": -1.4916597}, {"d": 912.2, "lat": 53.9074148, "lon": -1.4917007}, {"d": 929.4, "lat": 53.9075654, "lon": -1.4917601}, {"d": 964.2, "lat": 53.9078424, "lon": -1.4920084}, {"d": 980.5, "lat": 53.9079635, "lon": -1.4921481}, {"d": 993, "lat": 53.9080415, "lon": -1.4922858}, {"d": 1014.8, "lat": 53.9081496, "lon": -1.4925629}, {"d": 1038.6, "lat": 53.9079522, "lon": -1.4927012}, {"d": 1062.2, "lat": 53.90774, "lon": -1.4927155}, {"d": 1073.7, "lat": 53.9076451, "lon": -1.4927859}, {"d": 1083, "lat": 53.9075979, "lon": -1.492903}, {"d": 1090.3, "lat": 53.9075696, "lon": -1.4930042}, {"d": 1096.5, "lat": 53.9075427, "lon": -1.4930874}, {"d": 1099.4, "lat": 53.9075321, "lon": -1.4931278}, {"d": 1101.1, "lat": 53.9075248, "lon": -1.4931503}];
-const run5Speed = [{"d": 0, "v": 6.16}, {"d": 1.7, "v": 4.1}, {"d": 8, "v": 8.96}, {"d": 26.6, "v": 18.85}, {"d": 34.2, "v": 27.12}, {"d": 41.7, "v": 30.12}, {"d": 50.9, "v": 34.63}, {"d": 60.9, "v": 37.48}, {"d": 71.7, "v": 39.96}, {"d": 83.1, "v": 40.48}, {"d": 94.2, "v": 40.69}, {"d": 105.7, "v": 42.84}, {"d": 118, "v": 46.07}, {"d": 131.3, "v": 49.34}, {"d": 159.1, "v": 50.95}, {"d": 173.8, "v": 52.39}, {"d": 188.2, "v": 53.12}, {"d": 203.3, "v": 54.64}, {"d": 218.6, "v": 55.52}, {"d": 234.1, "v": 56.8}, {"d": 265.9, "v": 59.2}, {"d": 316.4, "v": 60.62}, {"d": 333.3, "v": 58.77}, {"d": 349, "v": 54.01}, {"d": 363.3, "v": 51.42}, {"d": 377.6, "v": 53.41}, {"d": 393, "v": 54.08}, {"d": 407.6, "v": 55.94}, {"d": 424, "v": 58.64}, {"d": 440.2, "v": 58.25}, {"d": 456.4, "v": 58.45}, {"d": 488.9, "v": 56.04}, {"d": 534.2, "v": 51.99}, {"d": 546.7, "v": 38.1}, {"d": 555.4, "v": 39.91}, {"d": 568.8, "v": 47.24}, {"d": 581.6, "v": 47.84}, {"d": 595.4, "v": 48.38}, {"d": 608.5, "v": 50.88}, {"d": 623.7, "v": 56.37}, {"d": 639.8, "v": 59.97}, {"d": 657, "v": 62.51}, {"d": 674.6, "v": 64.19}, {"d": 692.7, "v": 65.88}, {"d": 711.2, "v": 73.78}, {"d": 733.6, "v": 65.77}, {"d": 747.7, "v": 42.22}, {"d": 757.1, "v": 24.61}, {"d": 761.4, "v": 18.84}, {"d": 767.6, "v": 34.92}, {"d": 780.8, "v": 53.94}, {"d": 797.5, "v": 57.87}, {"d": 845.1, "v": 52.37}, {"d": 855.7, "v": 34.67}, {"d": 864.3, "v": 29.71}, {"d": 872.2, "v": 31.21}, {"d": 881.7, "v": 43.67}, {"d": 896.5, "v": 55.01}, {"d": 912.2, "v": 59.28}, {"d": 929.4, "v": 62.43}, {"d": 964.2, "v": 61.33}, {"d": 980.5, "v": 51.83}, {"d": 993, "v": 41.15}, {"d": 1014.8, "v": 40.97}, {"d": 1038.6, "v": 42.63}, {"d": 1062.2, "v": 42.14}, {"d": 1073.7, "v": 37.46}, {"d": 1083, "v": 29.94}, {"d": 1090.3, "v": 24.4}, {"d": 1096.5, "v": 16.41}, {"d": 1099.4, "v": 8.24}, {"d": 1101.1, "v": 6.05}];
+const run5Speed = [{"d": 0, "v": 6.16, "t": 0}, {"d": 1.7, "v": 4.1, "t": 1}, {"d": 8, "v": 8.96, "t": 7}, {"d": 26.6, "v": 18.85, "t": 11}, {"d": 34.2, "v": 27.12, "t": 12}, {"d": 41.7, "v": 30.12, "t": 13}, {"d": 50.9, "v": 34.63, "t": 14}, {"d": 60.9, "v": 37.48, "t": 15}, {"d": 71.7, "v": 39.96, "t": 16}, {"d": 83.1, "v": 40.48, "t": 17}, {"d": 94.2, "v": 40.69, "t": 18}, {"d": 105.7, "v": 42.84, "t": 19}, {"d": 118, "v": 46.07, "t": 20}, {"d": 131.3, "v": 49.34, "t": 21}, {"d": 159.1, "v": 50.95, "t": 23}, {"d": 173.8, "v": 52.39, "t": 24}, {"d": 188.2, "v": 53.12, "t": 25}, {"d": 203.3, "v": 54.64, "t": 26}, {"d": 218.6, "v": 55.52, "t": 27}, {"d": 234.1, "v": 56.8, "t": 28}, {"d": 265.9, "v": 59.2, "t": 30}, {"d": 316.4, "v": 60.62, "t": 33}, {"d": 333.3, "v": 58.77, "t": 34}, {"d": 349, "v": 54.01, "t": 35}, {"d": 363.3, "v": 51.42, "t": 36}, {"d": 377.6, "v": 53.41, "t": 37}, {"d": 393, "v": 54.08, "t": 38}, {"d": 407.6, "v": 55.94, "t": 39}, {"d": 424, "v": 58.64, "t": 40}, {"d": 440.2, "v": 58.25, "t": 41}, {"d": 456.4, "v": 58.45, "t": 42}, {"d": 488.9, "v": 56.04, "t": 44}, {"d": 534.2, "v": 51.99, "t": 47}, {"d": 546.7, "v": 38.1, "t": 48}, {"d": 555.4, "v": 39.91, "t": 49}, {"d": 568.8, "v": 47.24, "t": 50}, {"d": 581.6, "v": 47.84, "t": 51}, {"d": 595.4, "v": 48.38, "t": 52}, {"d": 608.5, "v": 50.88, "t": 53}, {"d": 623.7, "v": 56.37, "t": 54}, {"d": 639.8, "v": 59.97, "t": 55}, {"d": 657, "v": 62.51, "t": 56}, {"d": 674.6, "v": 64.19, "t": 57}, {"d": 692.7, "v": 65.88, "t": 58}, {"d": 711.2, "v": 73.78, "t": 59}, {"d": 733.6, "v": 65.77, "t": 60}, {"d": 747.7, "v": 42.22, "t": 61}, {"d": 757.1, "v": 24.61, "t": 62}, {"d": 761.4, "v": 18.84, "t": 63}, {"d": 767.6, "v": 34.92, "t": 64}, {"d": 780.8, "v": 53.94, "t": 65}, {"d": 797.5, "v": 57.87, "t": 66}, {"d": 845.1, "v": 52.37, "t": 69}, {"d": 855.7, "v": 34.67, "t": 70}, {"d": 864.3, "v": 29.71, "t": 71}, {"d": 872.2, "v": 31.21, "t": 72}, {"d": 881.7, "v": 43.67, "t": 73}, {"d": 896.5, "v": 55.01, "t": 74}, {"d": 912.2, "v": 59.28, "t": 75}, {"d": 929.4, "v": 62.43, "t": 76}, {"d": 964.2, "v": 61.33, "t": 78}, {"d": 980.5, "v": 51.83, "t": 79}, {"d": 993, "v": 41.15, "t": 80}, {"d": 1014.8, "v": 40.97, "t": 82}, {"d": 1038.6, "v": 42.63, "t": 84}, {"d": 1062.2, "v": 42.14, "t": 86}, {"d": 1073.7, "v": 37.46, "t": 87}, {"d": 1083, "v": 29.94, "t": 88}, {"d": 1090.3, "v": 24.4, "t": 89}, {"d": 1096.5, "v": 16.41, "t": 90}, {"d": 1099.4, "v": 8.24, "t": 91}, {"d": 1101.1, "v": 6.05, "t": 92}];
 
 const runsData = [originalRunSpeed, run2Speed, run3Speed, run4Speed, run5Speed];
 const RUN_LABELS = ['13:31', '09:31', '11:37', '12:17', '12:49']; // GPX start times (BST), for chart legend
@@ -1237,7 +1331,11 @@ function addGpxRun(xmlText, filename, customLabel) {
     return;
   }
 
-  runsData.push(run.map(p => ({ d: p.d, v: p.v })));
+  // t is rebased to this run's own start, matching the embedded runs' basis —
+  // processGpxRun carries absolute epoch seconds, which would be meaningless
+  // as a sector time.
+  const t0 = run[0].t;
+  runsData.push(run.map(p => ({ d: p.d, v: p.v, t: p.t - t0 })));
   allRoutePoints.push(run.map(p => ({ d: p.d, lat: p.lat, lon: p.lon })));
   runVisible.push(true);
   const label = customLabel || deriveRunLabel(rawPts, filename);
@@ -1933,11 +2031,16 @@ function predictPaceWithDiagnostics(params) {
   // (FINISH_DISTANCE), not the simulation's safety-margin extent (dMax) —
   // the model still simulates a bit past the line for numerical margin, but
   // that shouldn't count toward the timed run.
-  let totalTime = 0;
-  for (let d = 1; d <= FINISH_DISTANCE; d++) {
+  // Cumulative elapsed time to every metre, so sector times are slices of the
+  // same integration the headline Run Time comes from rather than a second,
+  // separately-rounded calculation. Built across the full simulated extent;
+  // Run Time is simply its value at the finish line.
+  const cumTime = [0];
+  for (let d = 1; d <= dMax; d++) {
     const vAvg_ms = ((mergedV[d-1] + mergedV[d]) / 2) / 3.6;
-    if (vAvg_ms > 0.01) totalTime += 1 / vAvg_ms;
+    cumTime.push(cumTime[d-1] + (vAvg_ms > 0.01 ? 1 / vAvg_ms : 0));
   }
+  const totalTime = cumTime[FINISH_DISTANCE];
 
   // Energy accounting over the timed run (0 to FINISH_DISTANCE): gravitational
   // PE released — using the same corrected gradient the physics actually
@@ -2071,6 +2174,26 @@ function predictPaceWithDiagnostics(params) {
       };
     }
 
+    // --- Sector: the approach to this corner plus the corner itself ---
+    // Bounded at corner exits, so every metre of the course belongs to exactly
+    // one sector and the six sector times sum to Run Time. Approach and corner
+    // are deliberately one unit: braking point and entry speed are a single
+    // decision, and splitting them would report a "corner time" that no amount
+    // of driving can change independently of the straight before it.
+    // Clamped at the finish line — Chippy's own span runs 15m past it.
+    const secStart = i > 0 ? Math.min(cornerZones[i-1].d1, FINISH_DISTANCE) : 0;
+    const secEnd = Math.min(z.d1, FINISH_DISTANCE);
+    const atCum = d => {
+      const c = Math.max(0, Math.min(dMax, d));
+      const lo = Math.floor(c), hi = Math.min(dMax, lo + 1);
+      return cumTime[lo] + (c - lo) * (cumTime[hi] - cumTime[lo]);
+    };
+    const atV = d => {
+      const c = Math.max(0, Math.min(dMax, d));
+      const lo = Math.floor(c), hi = Math.min(dMax, lo + 1);
+      return mergedV[lo] + (c - lo) * (mergedV[hi] - mergedV[lo]);
+    };
+
     return {
       name: z.name,
       dist: apexAtDist,
@@ -2080,11 +2203,55 @@ function predictPaceWithDiagnostics(params) {
       brakePointDist,
       brakeDistance: brakePointDist !== null ? apexAtDist - brakePointDist : 0,
       loadTransfer,
-      maxBrakeDecel
+      maxBrakeDecel,
+      secStart,
+      secEnd,
+      secVIn: atV(secStart),
+      secVOut: atV(secEnd),
+      secTimePred: atCum(secEnd) - atCum(secStart)
     };
   });
 
   return {data: predicted, time: totalTime, diagnostics, zoneState, energyAvailable, energyRR, energyDrag, energyCornering, energyBraking};
+}
+
+// --- Measured elapsed time at an arbitrary distance along a recorded run ---
+// Reads the GPX clock (`t`), never integrates speed — see the note above
+// originalRunSpeed for why that distinction matters at the launch.
+//
+// Sector boundaries fall between trackpoints, so the value inside a bracketing
+// pair has to be interpolated. Time is distributed across the pair by its own
+// speed profile rather than linearly in distance (speed can change a lot inside
+// one 3-6s gap, and linear-in-distance would mis-place the boundary wherever it
+// does), then scaled so the pair still spans exactly the measured interval.
+// Returns null past either end of the recording rather than clamping, so a run
+// that stops short of the finish reports "no data" instead of a wrong number.
+function measuredTimeAt(run, d) {
+  if (!run.length || run[0].t == null) return null;
+  if (d < run[0].d - 0.001 || d > run[run.length-1].d + 0.001) return null;
+  if (d <= run[0].d) return run[0].t;
+  if (d >= run[run.length-1].d) return run[run.length-1].t;
+
+  for (let i = 0; i < run.length - 1; i++) {
+    const a = run[i], b = run[i+1];
+    if (d < a.d || d > b.d) continue;
+    const span = b.d - a.d;
+    if (span < 1e-9) return a.t;
+    // integrate dd/v across part of the pair and across all of it, with v
+    // linear between the two endpoints; the ratio places d within [a.t, b.t]
+    const seg = dd => {
+      let acc = 0; const N = 32, h = dd / N;
+      for (let k = 0; k < N; k++) {
+        const frac = (h * (k + 0.5)) / span;
+        const v = (a.v + frac * (b.v - a.v)) / 3.6;
+        if (v > 0.05) acc += h / v;
+      }
+      return acc;
+    };
+    const whole = seg(span);
+    return a.t + (whole > 1e-9 ? (seg(d - a.d) / whole) * (b.t - a.t) : 0);
+  }
+  return null;
 }
 
 // Speed at the actual finish line (FINISH_DISTANCE), interpolated from the
@@ -2756,35 +2923,77 @@ function renderEnergyBudget(result) {
 // E · Corner table, ranked by |predicted − actual| so the corners the model
 // gets wrong sit at the top instead of being buried in course order.
 function renderCornerTable(zoneState) {
+  // Actual sector time comes from the run currently selected for comparison —
+  // the same run driving the Δ trace and the map's Actual layer — read off its
+  // GPX clock via measuredTimeAt(). Deliberately not pulled into
+  // predictPaceWithDiagnostics: that function is pure physics, and which run
+  // you happen to be comparing against is a UI choice. Same split already
+  // applied to corner radius (never follows the toggle) vs apex speed (does).
+  const cmpRun = actualRunUsable() ? runsData[actualRunIdx] : null;
+
   const rows = zoneState.map((z, i) => {
     const zone = cornerZones[i];
     const delta = z.recordedApexSpeed !== null ? z.predictedApex - z.recordedApexSpeed : null;
-    return { z, zone, i, delta, rank: delta === null ? -1 : Math.abs(delta) };
+
+    let secTimeAct = null;
+    if (cmpRun) {
+      const tA = measuredTimeAt(cmpRun, z.secStart);
+      const tB = measuredTimeAt(cmpRun, z.secEnd);
+      if (tA !== null && tB !== null) secTimeAct = tB - tA;
+    }
+    const dt = secTimeAct !== null ? secTimeAct - z.secTimePred : null;
+
+    // Sorted by time lost/gained, not by speed error: a 15 km/h miss through a
+    // short corner and a 4 km/h miss down a long sector are indistinguishable
+    // in km/h but very different in seconds, and seconds are the objective.
+    return { z, zone, i, delta, secTimeAct, dt, rank: dt === null ? -1 : Math.abs(dt) };
   }).sort((a, b) => b.rank - a.rank);
 
   const maxAbs = Math.max(1, ...rows.map(r => r.rank));
+  const sumPred = zoneState.reduce((s, z) => s + z.secTimePred, 0);
+  const haveAll = rows.every(r => r.secTimeAct !== null);
+  const sumAct = haveAll ? rows.reduce((s, r) => s + r.secTimeAct, 0) : null;
 
   const body = rows.map(r => {
-    const { z, zone, i, delta } = r;
+    const { z, zone, i, delta, secTimeAct, dt } = r;
     const color = CORNER_COLORS[i % CORNER_COLORS.length];
     const spread = zone.radiusRunCount > 1 ? zone.radiusSpread : null;
     // A radius fit that swings this wide across runs is GPS noise, not
     // geometry — Willow's 28-102m is a documented weakness and should look it.
     const noisy = spread && (spread[1] - spread[0]) > zone.radius * 1.2;
     const radiusCell = zone.radius
-      ? `${zone.radius.toFixed(0)}m${spread ? `<div class="row-meta"${noisy ? ' style="color:#b9770e;"' : ''}>${spread[0].toFixed(0)}–${spread[1].toFixed(0)}${noisy ? ' ⚠' : ''}</div>` : ''}`
+      ? `${zone.radius.toFixed(0)}m${spread ? `<div class="row-meta"${noisy ? ' style="color:#b9770e;"' : ''}>${spread[0].toFixed(0)}–${spread[1].toFixed(0)}${noisy ? ' ⚠' : ''}</div>` : ''}<div class="row-meta">limit ${z.vLimit.toFixed(1)}</div>`
       : 'n/a';
 
-    let deltaCell = '<span style="color:var(--text-faint); font-size:10.5px;">no measured apex</span>';
-    if (delta !== null) {
-      const mag = Math.abs(delta) / maxAbs * 50;
-      const sev = Math.abs(delta) > 10 ? 'var(--danger)' : (Math.abs(delta) > 4 ? '#b9770e' : 'var(--success)');
-      const bar = delta >= 0
+    // Apex speed keeps its own signed number but no longer gets the bar — the
+    // bar now encodes Δt, which is what the table is sorted by.
+    const apexSev = delta === null ? 'var(--text-faint)'
+      : Math.abs(delta) > 10 ? 'var(--danger)'
+      : Math.abs(delta) > 4 ? '#b9770e' : 'var(--success)';
+    const apexCell = `${z.predictedApex.toFixed(1)} <span style="color:var(--text-faint);">/</span> ${z.recordedApexSpeed !== null ? z.recordedApexSpeed.toFixed(1) : '—'}`
+      + (delta !== null
+        ? `<div class="row-meta" style="color:${apexSev};">${delta > 0 ? '+' : ''}${delta.toFixed(1)} km/h</div>`
+        : '<div class="row-meta">no measured apex</div>');
+
+    const sectorCell = `${z.secVIn.toFixed(1)} <span style="color:var(--text-faint);">→</span> ${z.secVOut.toFixed(1)}`
+      + `<div class="row-meta">${z.secStart.toFixed(0)}–${z.secEnd.toFixed(0)}m</div>`;
+
+    const timeCell = `${z.secTimePred.toFixed(2)}<span style="color:var(--text-faint);"> / </span>${secTimeAct !== null ? secTimeAct.toFixed(2) : '—'}`;
+
+    let deltaCell = '<span style="color:var(--text-faint); font-size:10.5px;">run doesn\'t cover this sector</span>';
+    if (dt !== null) {
+      const mag = Math.abs(dt) / maxAbs * 50;
+      // Thresholds in seconds. Timestamps are whole-second, so a boundary
+      // interpolated between two points carries roughly ±0.5s — anything under
+      // that is inside the measurement's own resolution and shouldn't read as
+      // a finding.
+      const sev = Math.abs(dt) > 1.0 ? 'var(--danger)' : (Math.abs(dt) > 0.5 ? '#b9770e' : 'var(--success)');
+      const bar = dt >= 0
         ? `<i style="left:50%; width:${mag}%; background:${sev};"></i>`
         : `<i style="right:50%; width:${mag}%; background:${sev};"></i>`;
       deltaCell = `<div class="dcell">
         <div class="dbar"><span class="dzero"></span>${bar}</div>
-        <span class="dval" style="color:${sev};">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>
+        <span class="dval" style="color:${sev};">${dt > 0 ? '+' : ''}${dt.toFixed(2)}s</span>
       </div>`;
     }
 
@@ -2801,12 +3010,12 @@ function renderCornerTable(zoneState) {
     return `<tr class="expandable" data-corner="${i}">
       <td>
         <div class="row-name"><span class="dot" style="background:${color};"></span>${zone.name}</div>
-        <div class="row-meta">${zone.direction === 'left' ? 'left' : 'right'} · ${zone.d0}–${zone.d1}m</div>
+        <div class="row-meta">${zone.direction === 'left' ? 'left' : 'right'} · corner ${zone.d0}–${zone.d1}m</div>
       </td>
       <td class="num">${radiusCell}</td>
-      <td class="num">${z.vLimit.toFixed(1)}</td>
-      <td class="num">${z.predictedApex.toFixed(1)}</td>
-      <td class="num">${z.recordedApexSpeed !== null ? z.recordedApexSpeed.toFixed(1) : '—'}</td>
+      <td class="num">${apexCell}</td>
+      <td class="num">${sectorCell}</td>
+      <td class="num">${timeCell}</td>
       <td>${deltaCell}</td>
       <td>${brakeCell}</td>
     </tr>
@@ -2815,13 +3024,24 @@ function renderCornerTable(zoneState) {
     </tr>`;
   }).join('');
 
+  const totalRow = `<tr class="total-row">
+    <td colspan="4">Whole course, launch to finish line</td>
+    <td class="num">${sumPred.toFixed(2)}<span style="color:var(--text-faint);"> / </span>${sumAct !== null ? sumAct.toFixed(2) : '—'}</td>
+    <td>${sumAct !== null
+      ? `<span class="dval" style="color:${Math.abs(sumAct - sumPred) > 1 ? 'var(--danger)' : 'var(--success)'};">${sumAct - sumPred > 0 ? '+' : ''}${(sumAct - sumPred).toFixed(2)}s</span>`
+      : '<span style="color:var(--text-faint); font-size:10.5px;">run stops short</span>'}</td>
+    <td></td>
+  </tr>`;
+
   const el = document.getElementById('cornerAnalysis');
   el.innerHTML = `<div class="table-scroll"><table class="data-table">
     <thead><tr>
-      <th>Corner</th><th>Radius</th><th>Grip limit</th><th>Predicted</th><th>Actual</th>
-      <th style="width:150px;">Δ pred − actual</th><th>Braking</th>
+      <th>Corner</th><th>Radius</th><th>Apex km/h<div class="th-sub">pred / actual</div></th>
+      <th>Sector km/h<div class="th-sub">entry → exit</div></th>
+      <th>Sector time s<div class="th-sub">pred / actual</div></th>
+      <th style="width:150px;">Δt actual − pred</th><th>Braking</th>
     </tr></thead>
-    <tbody>${body}</tbody>
+    <tbody>${body}${totalRow}</tbody>
   </table></div>`;
 
   el.querySelectorAll('tr.expandable').forEach(tr => {
@@ -3169,6 +3389,22 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   updateChart();
+
+  // Chart.js sizes the canvas from the container it saw at creation time and
+  // does not always pick up a width change that comes from a media query
+  // rather than from the container's own box — on a phone rotation the canvas
+  // could stay at its landscape width and push the whole document into
+  // horizontal scroll. Re-measuring explicitly on resize/orientation change is
+  // cheap and makes that impossible. Leaflet needs the same nudge: a map sized
+  // while its panel was one width renders grey tiles at the new one.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (paceChartInstance) paceChartInstance.resize();
+      if (routeMap) routeMap.invalidateSize();
+    }, 150);
+  });
 
   // Baseline is captured after the first render, so it reflects the calibrated
   // defaults (including CALIBRATED_MU, which is computed at load rather than
