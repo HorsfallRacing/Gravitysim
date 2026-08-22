@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["-e", "require('http').createServer((req,res)=>{const fs=require('fs');const path=require('path');const url=require('url');let p=url.parse(req.url).pathname;p=p==='/'?'/soapbox_circuit_simulator.html':p;p=path.join(__dirname,decodeURIComponent(p));fs.readFile(p,(err,data)=>{if(err){res.writeHead(404);res.end('not found');return;}res.writeHead(200,{'Content-Type':'text/html','Cache-Control':'no-store'});res.end(data);});}).listen(5173);"],
       "port": 5173
+    },
+    {
+      "name": "concept-lab",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["pipeline/server.js"],
+      "port": 8137
     }
   ]
 }

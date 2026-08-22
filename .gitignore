@@ -1,0 +1,5 @@
+# LIDAR source tile: 4 MB binary, re-fetchable in ~1 s with pipeline/fetchdtm.js
+pipeline/*.tif
+
+# scratch preview output
+_preview_*.html

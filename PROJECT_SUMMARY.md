@@ -1042,3 +1042,851 @@ below 900px, and whether the hotspots still line up has **not** been checked.
 - **Nothing aggregates the five runs** — every comparison is against one
   selected run, so there is no actual-pace corridor to judge against.
 - **Legacy image-map hotspot alignment below 900px is unverified** (above).
+
+---
+
+## Session update: stall bug, start-line gradient artifact, full assumptions register
+
+Two real bugs fixed, one compensating error exposed, and the model's assumptions
+written down in one place for the first time.
+
+### Bug 1: a stalled car reported an impossibly fast run time
+
+Reported as "these inputs give an impossibly fast time" with 185kg (4×46.25),
+CofG 200mm, wheelbase 1345, track 650 f/r, μ 1.1, Crr 0.02. The page showed
+**13.7s**.
+
+Chain of causation:
+
+1. The elevation profile opens `{d:0, ele:96.8}, {d:1.0, 96.8}, {d:4.1, 96.8}` —
+   the first 4.1m read as dead flat.
+2. On zero gradient the only force is rolling resistance, whose deceleration is
+   `Crr·g` — mass cancels, so no other input can rescue it.
+3. Coast distance from V0 (3.99 km/h) is `v²/(2·Crr·g)` = `0.0625/Crr`. Above
+   **Crr ≈ 0.0152** that is under 4.1m: the car stops before reaching the slope.
+4. `forwardEnvelope` hit v=0, distance stopped advancing, and it burned its whole
+   300s `tMax` parked at d=3.1m. `sampleTrace` then returned 0 km/h for every
+   metre beyond.
+5. The time integration scored those metres as **zero seconds each**:
+   `cumTime.push(... vAvg_ms > 0.01 ? 1/vAvg_ms : 0)`. All 13.74s accrued in the
+   first four metres; metres 4 to 1078 contributed exactly 0.00s.
+
+Measured cliff: Crr 0.0150 → 76.0s, Crr 0.0153 → 19.5s, and non-monotonic
+garbage above that (0.016 → 7.4s, 0.02 → 13.7s) because the number was only
+measuring how far the car coasted before dying.
+
+**Fix.** `forwardEnvelope` now returns `stalledAt` and breaks out instead of
+spinning. `predictPaceWithDiagnostics` scans the merged trace and returns
+`time: null` plus `stallDistance` when the car does not reach the finish. The
+hero readout shows an em-dash, the result band shows `no finish — car stops at
+NNNm`, the sensitivity panel is replaced with an explanation, and the corner
+table shows a stall notice — it had the identical bug, reporting `0.00s` sector
+times and `0.0 km/h` apexes for every sector past the stall. Sensitivity also
+handles the partial case: if the base setting finishes but ±10% does not, that
+row reads `no finish at ±10%` rather than producing NaN bars.
+
+### Bug 2: the start-line gradient artifact
+
+The three identical 96.8m samples are the barometric altimeter's 0.1m
+quantisation, not terrain. Harewood's start line is on the slope and there is no
+push start (confirmed with the user).
+
+`LEADING_FLAT` now finds the leading run of identical elevation samples and
+extends the first genuinely-measured gradient back to d=0. Gradient at the line
+goes from 0 to 0.093. Deliberately bounded to that leading run — the rest of the
+profile and the `altimeterSettlingScale` fit are untouched.
+
+There was already a guard attempting this, but it only fired at exactly `d <= 0`
+and read its gradient from two samples that both read 96.8, so it returned zero
+anyway.
+
+### What the fix exposed: ~4.2s of compensating error
+
+The calibrated default moved from **83.5s to 79.2s**. The flat-start artifact had
+been adding ~4.2s of start-line crawl to every run.
+
+Measured times from the GPX clock to the real finish line (d=1078):
+
+| Run | Measured |
+|---|---|
+| 13:31 | 84.51s |
+| 09:31 | 82.50s |
+| 11:37 | 86.56s |
+| 12:17 | (GPX does not reach the line) |
+| 12:49 | 87.43s |
+
+So before the fix the model sat inside the real range for the wrong reason;
+after it, the model is **3-8s optimistic**. It was not accurate, it was wrong in
+two directions at once. Anything calibrated by matching a predicted time to a
+stopwatch has been absorbing this.
+
+**Also found, not changed:** `REAL_RUN_MIN`/`REAL_RUN_MAX` are 88/92 and the band
+renders "real runs 88-92s", but the runs measure 82.5-87.4s to the current finish
+line. Those constants look to predate the finish-line relocation to d=1078. They
+are coupled to hardcoded CSS percentages (`left:57.1%, width:14.3%`), so changing
+them means touching the stylesheet too.
+
+### Assumptions register
+
+Status key: **M** measured · **F** fitted/inferred · **A** assumed · **P**
+placeholder · **S** structural (deliberately not modelled).
+
+#### Highest impact
+
+- **(F/A) `altimeterSettlingScale` (`A=0.78, L=50`)** — self-described in the
+  source as "UNCONFIRMED ASSUMPTION, not measured data". A gradient multiplier
+  fitted to explain a straight-line speed deficit, attributed to a barometric
+  sensor settling. Never verified against an independent altitude reference.
+  Inflates gradient by up to 78% at the line, decaying by ~150m. The entire
+  launch rests on it.
+- **(F) μ from `calibrateMu()`** — median implied lateral g from Willow and
+  Country apex speeds only (2 of 6 corners), which **assumes the driver was
+  exactly at the grip limit** at those apexes. If anything was left in hand, μ
+  is understated and every corner limit with it. Falls back to a hardcoded 0.4.
+- **(A) `LEADING_FLAT`** — assumes the flat leading run is sensor quantisation,
+  not terrain, and that the next segment's gradient represents the start line.
+  Uses exact float equality as the "same quantised reading" test. Unverified
+  against a survey; moved the headline 4.2s.
+- **(A) Crr as a single constant** — see the dedicated section below.
+
+#### Vehicle inputs (UI chip vs reality)
+
+| Input | Chip | Status |
+|---|---|---|
+| μ | `4-run fit` | **F** — fitted from 2 corners, assumes at-the-limit driving |
+| Brake confidence 90% | `assumed` | **A** — no braking data exists |
+| Corner weights | `measured` | **M** |
+| Wheelbase 1345 | `unconfirmed` | **A** |
+| CofG height 300 | `estimate` | **A** — never measured |
+| Track F/R 1060 | `measured` | **M** |
+| CdA 0.1125 | `CFD` | **A** — simulated, not tunnel or coast-down |
+| Crr 0.0048 | `tyre data` | **A** — published figure, not this car or surface |
+
+Input *ranges* are themselves assumptions: Crr's `max="0.010"` did not stop a
+typed 0.02, and nothing clamps or warns.
+
+#### Physics deliberately excluded (S)
+
+- **Rolling resistance is a constant force** — speed-independent, and does not
+  vanish at v=0. This is what makes zero speed an absorbing state.
+- **No rotational inertia** — mass is purely translational; no wheel spin-up
+  energy, no effective-mass penalty. *Scoped out for now by decision.*
+- **No drivetrain or bearing losses** beyond whatever Crr absorbs. *Ignored by
+  decision.*
+- **Lateral load transfer computed but never fed back into grip** — no tyre load
+  sensitivity. *Deliberate: see the reasoning below.*
+- **Crosswind ignored** — only the along-track component affects drag; yawed CdA
+  is unmodelled. *Ignored by decision.*
+- **CdA constant** with speed, attitude and ride height. *Accepted by decision.*
+- **No banking or camber** — lateral limit is pure μg on a flat plane.
+  *Accepted by decision.*
+- **Point-mass model** — no yaw dynamics, no slip angles, no line choice. The car
+  is assumed to follow the recorded GPS line exactly.
+- **Driver assumed perfect** — exactly at the grip limit in corners, exactly
+  `brakeConfidence`% of μ under braking, everywhere, every time.
+- **Gravity uses `m·g·tan(θ)`, not `m·g·sin(θ)`** — the gradient is rise/run. Max
+  gradient on the course is 17.8% at d=378 (mean 6.4%, total drop 67.6m), so this
+  over-states gravity by up to **1.57%** at the steepest point. Small, but
+  systematic, and it stacks with the settling scale above. Likewise rolling
+  resistance should act on `m·g·cos(θ)`, not `m·g`.
+
+**Removed from this list:** suspension roll compliance. The car has none, so the
+rigid-body `aRoll` is exact for this vehicle apart from tyre deformation.
+
+#### Track and course data
+
+- **(A)** Elevation is barometric, quantised to 0.1m — root cause of both bugs
+  above.
+- **(F)** `FINISH_DISTANCE = 1078`, projected from two what3words points onto the
+  GPS line; ~0.7m off-track at closest approach.
+- **(F)** Corner spans (`CORNER_DEFS`) located from a single run's heading-change
+  data.
+- **(F)** Corner radii from GPS curvature fit. **Willow's spread across runs is
+  28-102m** and the code already flags it as noise rather than geometry.
+- **(F)** Speed is derived, not logged — central difference of GPX position/time,
+  sample spacing 1-9s.
+- **(A)** GPS jitter ~2-3m; the first 100m is excluded from diagnostics for it.
+- **(F)** `V0 = 3.99 km/h`, average first-sample speed across 5 runs, used as the
+  launch speed for every simulation.
+- **(P)** Wind is placeholder data throughout: `actualWindDir = 225` is commented
+  "placeholder until a verified reading is confirmed", default actual wind speed
+  is 12 km/h, and the UI itself says "unverified placeholder, not a real
+  reading".
+- **(A)** One run's GPS trace is treated as *the* racing line for all runs.
+- **(A)** `RHO = 1.225` fixed at sea-level standard. Harewood is ~120m and real
+  conditions shift it 1-2%. **Agreed to make this adaptable.**
+
+### Rolling resistance: the piece worth opening up
+
+Rolling resistance is not a rounding error here. Over the timed run it consumes
+**7.5%** of the available gravitational energy at Crr 0.0048 and **31.1%** at
+Crr 0.02. On the 8-wheel car it is nearly a third of the energy budget and it is
+the parameter the whole wheel-swap strategy turns on.
+
+Problems with `F_rr = Crr · m · g` as written:
+
+1. **No speed dependence.** Real tyres follow roughly `Crr(v) = C0 + C1·v`
+   (sometimes a `v²` term). A single figure applied flat across 0-70 km/h is a
+   systematic error that varies along the course — and the published "tyre data"
+   value is quoted at some reference speed that is not stated.
+2. **Does not vanish at v=0.** Physically rolling resistance IS zero at rest;
+   what holds a car stationary is static breakaway. Conflating the two is what
+   makes v=0 absorbing and what produced Bug 1. These should be separate terms.
+3. **Normal load should be `m·g·cos(θ)`** — see the gradient note above.
+4. **Surface is assumed uniform** for the whole course. Crr is a property of
+   tyre *and* surface.
+5. **Tyre pressure is not an input**, despite being one of the strongest
+   real-world levers on Crr.
+6. **Bearing/hub drag is lumped in**, which means the published tyre figure is
+   the wrong number to use as a total.
+
+**The identifiability problem — the important one.** Crr and a gradient error
+both produce a near-constant retarding force, so **they are not separately
+identifiable from a single GPS run.** The model currently carries a fitted
+gradient correction (`altimeterSettlingScale`) *and* a fixed Crr; each absorbs
+the other's error. That is precisely why touching the gradient surfaced 4.2s of
+hidden optimism. Breaking the degeneracy needs an independent measurement:
+
+- a **flat-ground coast-down** (gradient known to be zero, so the decay is pure
+  Crr, and the speed decay curve gives C0 and C1 separately), or
+- a **surveyed elevation profile** so gradient stops being a free parameter.
+
+Either would let the fitted correction be retired rather than re-tuned. This
+ranks above every other modelling improvement on the list.
+
+### Brake confidence: how it actually works
+
+One global number, no per-corner or per-run structure:
+
+- `accelAt()` applies `F_brake = (brakeConfidence/100) · μ · g · mass`, and only
+  when `brakeOn` is true — which happens **only in `backwardEnvelope`**.
+- The backward pass runs that maximum brake force *everywhere*, working back
+  from the finish, producing the fastest speed the car could carry at each point
+  and still slow for everything downstream.
+- Actual speed is `min(forward, backward)` — so braking appears only where the
+  backward pass binds, and **where and how hard is derived, never fitted**.
+- `brakePointDist` is an *output*: the first metre where the backward envelope
+  drops below the forward one.
+
+So it is not "how hard the driver brakes at corner N" — it is "what fraction of
+the available μ·g the driver is willing to use, anywhere braking is required."
+90% is a pure assumption.
+
+**Requested direction:** the user can supply real braking points but does not
+want them applied to all models. That matches the architecture already in place
+for recorded apex speed — displayed as a validation reference, feeding nothing
+back into the model. Measured brake points should be an *overlay* on the derived
+braking zones, per run, never an input to the physics.
+
+### Racing line: possible, but downstream
+
+Solving a minimum-time line is a well-posed problem, but it needs **track
+boundaries**, and GPS gives one driven line, not the edges. It could be
+approximated by assuming a width around the recorded centreline — but it would
+sit on top of a radius fit that already swings 28-102m at Willow. Optimising a
+line against a track whose shape is known to ±70m of radius would produce a
+confident-looking answer with nothing behind it. Improving the geometry comes
+first.
+
+### Tyre load sensitivity: recommended *against*, for now
+
+Tempting, but it would double-count. Load transfer reduces total axle grip
+because the outside tyre gains less than the inside loses — and **μ is already
+fitted from real cornering data**, so that effect is baked into the fitted
+number. Adding an explicit load-sensitivity curve on top would subtract it twice,
+unless μ were re-fitted from a load-free reference that does not exist. It would
+also mean inventing a sensitivity coefficient that cannot be fitted from this
+data: replacing a stated assumption with a hidden one, and making the model look
+more sophisticated without being more accurate.
+
+The existing diagnostic display is the right level — it already says explicitly
+that it shows load movement, not grip cost.
+
+### Scope decisions taken this session
+
+| Area | Decision |
+|---|---|
+| Rolling resistance | **Open up** — speed dependence, v=0 handling, cos(θ) |
+| Rotational inertia | Out for now |
+| Drivetrain losses | Ignore |
+| Suspension roll compliance | N/A — car has none |
+| Tyre load sensitivity | Interesting, but recommended against (double-counts) |
+| Crosswind | Ignore |
+| Air density | Make adaptable |
+| CdA | Fine as is |
+| Racing line | Wanted, but blocked on geometry confidence |
+| Banking/camber | Fine as is |
+| Brake confidence | Keep derived; add measured brake points as overlay only |
+
+### The 8-wheel comparison car (modelled, entirely unvalidated)
+
+A second vehicle: 8 wheels, 4 in contact at a time. Pneumatically deployed Xootr
+wheels for the start and straights, dropping onto kart wheels for fast corners.
+Brakes act **only** on the karts. Steering acts on all four front wheels. Ride
+height does not change — the axles pivot. No GPX exists for this car, so
+everything below is assumption on assumption:
+
+- **(A)** Crr_xootr = 0.012, range 0.009-0.018, from general PU/industrial-wheel
+  literature — not this wheel, durometer, load or surface. The range spans ~3s of
+  run time. **Note the literature argues against the premise**: solid PU
+  generally rolls *worse* than pneumatic on hard surfaces, and smaller diameter
+  makes it worse again. The comparison only favours the Xootrs because kart
+  slicks are deliberately high-hysteresis.
+- **(A)** Crr_kart = 0.02, μ_kart = 1.1 — user figures, no fit.
+- **(A)** Lateral-g allowance of 0.3g on the Xootrs — invented to reproduce the
+  actual schedule. Needed because "never corner on the Xootrs" is a geometric
+  rule the track does not respect: Quarry is a named corner at d=16-63m and is
+  taken on Xootrs. Track demand there is only ~0.19g (the car is doing 30 km/h),
+  against 0.59-0.82g at the real corners and ≤0.21g anywhere off-corner, so a
+  single threshold separates them cleanly.
+- **(A)** 0.5s transition, ≈9.0m of track at 64 km/h. On karts by d=270, so the
+  swap initiates around d=261.
+- **(A)** Changeover spin-up loss ≈1.2 km/h, derived from *assumed* wheel masses
+  (3kg kart, 0.35kg Xootr), *assumed* radii (0.13m, 0.09m) and an assumed
+  rim-heavy inertia factor. Three guesses stacked. Not currently modelled at all,
+  since rotational inertia is out of scope.
+- **(A)** Shares the base car's CdA, CoG, track and wheelbase by instruction.
+- The lateral-g figures above use the **bicycle-wheel car's** recorded speeds —
+  indicative of what the track demands, not a measurement of the 8-wheeler.
+- Predicted 71.0s for the user's setup inherits every assumption above *plus* the
+  3-8s optimism.
+
+**Deferred design work** (agreed but not built): per-wheelset Crr and `braked`
+flag, changeover-point schedule (`[{d, set}]`, not spans — spans allow silent
+gaps), blended transition, and a schedule optimiser. The optimiser has a clean
+structure: karts are required through corner zones *and* their braking zones plus
+a transition lead-in, Xootrs everywhere else, solved as a fixed point since lower
+Crr on the straights lengthens the braking zones.
+
+### Open, not done
+
+- **Air density is still hardcoded** at 1.225.
+- **The 3-8s optimism is unexplained** and is now visible rather than masked.
+- **`REAL_RUN_MIN`/`MAX` are stale** (88/92 vs measured 82.5-87.4).
+- **Several UI chips overstate confidence** — μ reads `4-run fit`, CdA reads
+  `CFD`, Crr reads `tyre data`; all three are closer to `estimated`.
+- **The 8-wheel car model is unvalidated** — no GPX exists for it.
+
+---
+
+## Session update: what the baseline GPX runs can and cannot constrain
+
+Question asked: given the baseline vehicle and its five GPX runs, can we derive
+constraints that say how a *different* vehicle would perform? Answer: yes, four
+useful ones — and one of them says the current 8-wheeler prediction is resting
+entirely on an unmeasured number.
+
+### Constraint 1: the noise floor (precision limit on any comparison)
+
+Each run compared against the mean of the other four, interpolated onto a 10m
+grid from d=100 to d=1078:
+
+| Run | RMSE vs other four |
+|---|---|
+| 13:31 | 5.29 km/h |
+| 09:31 | 4.10 km/h |
+| 11:37 | 4.01 km/h |
+| 12:17 | 9.69 km/h (also the run excluded from geometry) |
+| 12:49 | 6.68 km/h |
+| **Pooled** | **6.31 km/h** |
+
+Measured times span 82.5-87.4s — a **4.9s spread for the same car and driver.**
+
+This is the hard limit on vehicle comparison. **A predicted difference smaller
+than roughly ±2.5s is inside the run-to-run noise** and cannot be claimed from
+this dataset, no matter how good the model gets.
+
+### Constraint 2: the physical floor
+
+With drag, rolling resistance and grip limits all removed — pure gravity down
+this course — the run takes **51.9s**. No vehicle can beat that here. Any
+prediction approaching it should be treated as a modelling error, not a result.
+
+### Constraint 3: the model's systematic error, and that it is NOT one parameter
+
+Model vs all visible runs (d=100-1078, n=282): **RMSE 8.60 km/h** against a noise
+floor of 6.31. Subtracting in quadrature leaves ~**5.9 km/h of systematic error**
+a better model could remove.
+
+Signed error by 100m bin (positive = model too fast):
+
+| d | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 1000 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| mean err | +1.0 | +3.1 | +1.2 | +5.3 | +2.5 | -3.4 | +6.2 | +0.3 | +6.0 | +9.8 |
+
+The error **grows with distance**, which is the signature of a cumulative energy
+leak rather than a one-off offset. Corners are worse than straights (+3.87 vs
++1.69 km/h mean).
+
+But no single parameter fixes it. Best achievable RMSE by sweeping one variable:
+
+| Explanation | Best RMSE | at | Time then |
+|---|---|---|---|
+| Crr | 8.16 | 0.015 | 83.5s |
+| CdA | 7.90 | 0.30 (implausible) | 83.2s |
+| Global gradient scale | 8.24 | ×0.85 | 83.2s |
+| Brake confidence | 8.02 | 50% | 79.9s |
+
+All bottom out around 8, none approaches the 6.31 floor, and each can reach the
+right *total time* while leaving the *shape* wrong. **The gap is not Crr, not
+CdA, and not gradient alone** — which also means it cannot be cleanly attributed
+or transferred to another vehicle.
+
+Related: braking binds for only **82 of 1079 metres** and just **48 metres sit at
+the grip limit**, which is why brake confidence barely moves the result. The
+model believes the car coasts essentially free for over 90% of the course.
+
+### Constraint 4: attribution — where the 8-wheeler's advantage actually comes from
+
+Stepping the baseline params to the 8-wheeler one change at a time:
+
+| Change | Run time | Delta |
+|---|---|---|
+| Baseline (125.3kg, μ 0.50, Crr 0.0048) | 79.25s | — |
+| + mass 125.3 → 185kg | 78.37s | **−0.88s** |
+| + geometry (CoG 200, track 650) | 78.37s | **0.00s** |
+| + Crr 0.0048 → 0.020 (kart slicks) | 84.78s | **+6.41s** |
+| + μ 0.50 → 1.10 (**assumed**) | 71.03s | **−13.75s** |
+
+Three things fall out:
+
+1. **The entire predicted advantage is μ.** Everything else nets to +5.5s
+   *slower*; μ alone pulls 13.75s back. The 8-wheeler "pulls away" because of a
+   grip figure nobody has measured.
+2. **Mass helps** — +59.7kg made it 0.88s *faster*, because gravity scales with
+   mass while drag does not. Counterintuitive, robust, and independent of μ.
+   This one transfers.
+3. **Geometry contributes exactly zero.** Rollover never binds (aRoll 15.9 m/s²
+   vs grip at ~10.8), so CoG height and track width are currently inert inputs.
+
+The comparison is also contaminated on both sides: baseline μ=0.50 was *fitted
+assuming the driver was at the grip limit*. If they were not, real baseline μ is
+higher and the 8-wheeler's margin shrinks — while μ=1.1 was never fitted at all.
+
+### What transfers to a new vehicle, and what does not
+
+| Quantity | Transfers? |
+|---|---|
+| Track geometry, radii, distance | Yes — track property |
+| Gradient profile (and its error) | Yes, if same logger |
+| Driver behaviour / grip usage | Probably, if same driver |
+| Noise floor (±2.5s) | Yes |
+| Vehicle mass, Crr, CdA, μ | No — these are what differ |
+| The ~5.9 km/h systematic error | **Unknown** — unattributed, so cannot be assumed shared |
+
+The useful consequence: **relative predictions are more trustworthy than absolute
+ones.** Shared track/instrument/driver error largely cancels in a Δt between two
+vehicles on the same course — but only if they run at similar speeds, since the
+error's speed dependence is unknown and it is the thing growing with distance.
+
+### The one measurement that would unlock this
+
+**μ for the kart wheels, measured rather than assumed.** It is worth 13.75s in
+the current prediction — more than every other difference combined, and larger
+than the entire model error.
+
+Cheapest route: one GPS run of the 8-wheeler through a known-radius corner
+(Willow or Country), then apply the same implied-lateral-g calculation
+`calibrateMu()` already uses. That converts the dominant assumption into a fitted
+value using machinery that already exists.
+
+Second priority remains the flat-ground coast-down for Crr, which breaks the
+Crr/gradient degeneracy described in the previous session note.
+
+---
+
+## Session update: the getaway phase specifically
+
+Focus narrowed to the initial getaway rather than the full run. The launch turns
+out to be a much cleaner problem than the full lap — and completely unmeasurable
+with the current data.
+
+### The launch is a two-parameter problem, and neither is grip
+
+At launch speeds there is no cornering at the grip limit, no braking, and
+negligible drag. What remains is `a = g·(gradient − Crr)` — and **mass cancels
+exactly**, because gravity and rolling resistance both scale with it.
+
+Model sensitivity of time-to-50m (baseline vehicle):
+
+| Parameter | Change | t50 | Effect |
+|---|---|---|---|
+| Crr | 0.0048 → 0.012 | 9.80 → 10.20s | **+0.40s** |
+| Crr | 0.0048 → 0.020 | 9.80 → 10.70s | **+0.90s** |
+| μ | 0.50 → 1.10 | 9.80 → 9.80s | **0.00s** |
+| Mass | 125.3 → 185kg | 9.80 → 9.79s | −0.01s |
+| CdA | 0.1125 → 0.20 | 9.80 → 9.84s | +0.04s |
+
+Launch acceleration at d=10m: 0.792 m/s² at Crr 0.0048, 0.721 at 0.012, 0.642 at
+0.020. Mean gradient over the first 50m is 0.0852.
+
+**This exactly inverts the full-run finding.** Over the whole course μ was worth
+13.75s and Crr 6.41s. Over the first 50m μ is worth *nothing* and Crr is the only
+vehicle parameter that moves the needle.
+
+Consequence for the 8-wheel car: **the getaway is the one phase where the
+Xootr-vs-kart question is cleanly answerable**, because the only differing
+parameter that matters there is Crr. No unmeasured μ contaminating the result.
+
+### The current data cannot measure it
+
+Measured getaway splits from the GPX clock:
+
+| Run | v0 km/h | t10 | t25 | t50 | t100 | t200 | total |
+|---|---|---|---|---|---|---|---|
+| 13:31 | 3.67 | 7.95 | 11.95 | 15.42 | 20.41 | 27.69 | 84.51 |
+| 09:31 | 3.93 | 4.04 | 5.59 | 8.86 | 14.41 | 21.72 | 82.50 |
+| 11:37 | 4.55 | 7.44 | 10.92 | 14.28 | 19.14 | 26.36 | 86.56 |
+| 12:17 | 1.62 | 7.23 | 10.37 | 13.47 | 18.39 | 25.71 | — |
+| 12:49 | 6.16 | 7.60 | 10.75 | 13.91 | 18.51 | 25.78 | 87.43 |
+
+**t50 spans 8.86 to 15.42s — a 6.56s spread over 50 metres, same car, same
+driver.** The model predicts 9.80s. The measurement spread is roughly **7× the
+entire Crr effect** we would be trying to detect.
+
+It is not explained by launch speed: 12:49 had the highest v0 (6.16 km/h) and a
+middling t50; 09:31 had a middling v0 (3.93) and was 4.6s faster to 50m than
+anything else. Its second GPX sample sits at d=3.3m/t=3s where the others are at
+~1.0-1.7m/t=1s — a different early sampling pattern. At walking pace GPS position
+jitter (2-3m) is comparable to the distance actually travelled, so early distance
+tagging is unreliable. This is the same reason the diagnostics panel already
+excludes the first 100m.
+
+### The spread is frozen in, not recovered
+
+Range across runs at each mark: t50 **6.56s**, t100 6.00, t150 5.99, t200 5.97.
+
+After roughly 50m the gap between runs stops changing — all five proceed at
+effectively the same rate thereafter. Final time spread is 4.93s, slightly less
+than the launch spread, so a little is recovered but most is carried.
+
+Correlation between t50 and total time is r ≈ 0.69 across the four runs with a
+finish time. Suggestive that the launch matters disproportionately, **not
+statistically meaningful at n=4** — and confounded by the measurement problem
+above, since much of that t50 variation is probably not real.
+
+### How to apply it: the differential launch test
+
+The getaway depends on `g·(gradient − Crr)`. On the same start line the gradient
+is **common to both wheelsets**, so it cancels exactly in a *difference* between
+two launches.
+
+**A back-to-back launch measures ΔCrr between wheelsets without needing to know
+the gradient at all.** That is the experiment that breaks the Crr/gradient
+degeneracy flagged earlier — and it is a 50-metre roll, not a full run, so it can
+be repeated many times in an afternoon.
+
+It cannot be done with GPS. It can be done with the logger already drafted in
+`LOGGER_SPEC.md`:
+
+- **Wheel encoders at 200 Hz** (`whl_count_fl/fr/rl/rr`, with
+  `wheel_circumference_m` and `encoder_teeth_per_rev`) give distance and speed
+  directly at walking pace, immune to GPS jitter.
+- **IMU at 200 Hz** (`imu_ax`) measures acceleration directly, so
+  `g·(gradient − Crr)` is read as a single quantity rather than differentiated
+  out of a noisy position trace.
+- The spec already notes at its ingest-mapping table that `imu_ax` +
+  `gnss_speed_ms` yields measured gradient and retires `altimeterSettlingScale()`.
+
+So the getaway question is **blocked on hardware, not on modelling**. The logger
+as specced is the right instrument, and this is a strong argument for prioritising
+the encoder and IMU channels over everything else in it.
+
+### Caveat: rotational inertia belongs back in scope for launch work
+
+Rotational inertia was scoped out, which is defensible for full-run work. But the
+launch is the one phase dominated by *acceleration* rather than steady speed, so
+the wheel-inertia difference acts almost entirely here.
+
+Rough sizing: ~6.5kg of equivalent mass difference between wheelsets on 185kg is
+~3.5%, which costs roughly **0.15-0.20s over a 50m launch** — the same order as
+the 0.40-0.90s Crr effect being measured. At the precision the encoder makes
+possible, it can no longer be ignored: leaving it out would bias any fitted
+ΔCrr.
+
+---
+
+## Session update: characterising the launch phase from baseline GPX only
+
+Baseline car only (125.3kg, bicycle wheels, 5 GPX runs). Goal: understand the
+launch well enough to turn it into a parameterised component that new input data
+can be dropped into.
+
+Method: a forward-only integrator (nothing binds on grip or brakes at launch),
+run **per GPX run from that run's own starting speed** rather than the global
+averaged `V0`, compared against that run's own trace over d=0-200m.
+
+### Finding 1: per-run v0 transforms the fit
+
+| Run | v0 km/h | n pts | RMSE, settling ON | bias | RMSE, settling OFF | bias |
+|---|---|---|---|---|---|---|
+| 13:31 | 3.67 | 18 | 2.57 | +1.82 | 3.93 | −2.82 |
+| 09:31 | 3.93 | 17 | 7.20 | +0.63 | 8.17 | −4.29 |
+| 11:37 | 4.55 | 16 | 2.66 | +1.33 | 4.66 | −3.36 |
+| 12:17 | 1.62 | 14 | 1.77 | +0.85 | 4.50 | −3.72 |
+| 12:49 | 6.16 | 17 | 2.80 | +0.76 | 5.54 | −3.99 |
+
+Four of five runs sit at **1.8-2.8 km/h RMSE** once started from their own v0,
+against ~8.6 km/h for the whole-course aggregate. 09:31 remains an outlier
+(7.20) — consistent with its anomalous early sampling (second sample at
+d=3.3m/t=3s where the others are ~1.0-1.7m/t=1s).
+
+**The averaged `V0 = 3.99 km/h` is throwing away real, available information.**
+
+### Finding 2: the settling correction is *required*, not merely fitted
+
+With the settling scale off, the best-fit Crr **pegs at zero for every single
+run** and still leaves the model 1.6-3.0 km/h too slow.
+
+Since Crr cannot go below zero, **no physically possible rolling resistance can
+explain the launch.** There is genuinely more energy in the first 200m than the
+raw barometric gradient provides. This does not validate the specific
+exponential form (`A=0.78, L=50`), but it does establish that a correction of
+this sign and rough magnitude is necessary rather than cosmetic.
+
+### Finding 3: effective launch resistance is consistent across runs
+
+Best-fit Crr per run, settling on:
+
+| Run | fitted Crr | RMSE | bias |
+|---|---|---|---|
+| 13:31 | 0.0095 | 2.27 | +0.82 |
+| 09:31 | 0.0105 | 7.07 | −0.72 |
+| 11:37 | 0.0080 | 2.49 | +0.57 |
+| 12:17 | 0.0080 | 1.53 | +0.14 |
+| 12:49 | 0.0065 | 2.77 | +0.40 |
+
+**Mean ≈ 0.0085, range 0.0065-0.0105** — tight for five runs, and roughly
+**1.8× the nominal 0.0048** the model currently uses.
+
+Crucially this is an **effective** coefficient. It absorbs everything constant-ish
+resisting the car at launch: tyre rolling resistance, bearing and hub drag, any
+residual gradient error, wheel scrub, **and rotational inertia**. It is not a
+tyre property and must not be compared against a tyre datasheet figure.
+
+### Finding 4: speed fits well while time does not
+
+Model vs measured time-to-distance, using each run's own v0 and the fitted
+Crr=0.0085:
+
+| Run | t50 model | t50 measured | t100 model | t100 measured |
+|---|---|---|---|---|
+| 13:31 | 10.09 | 15.42 | 15.10 | 20.41 |
+| 09:31 | 10.02 | 8.86 | 15.02 | 14.41 |
+| 11:37 | 9.83 | 14.28 | 14.82 | 19.14 |
+| 12:17 | 10.74 | 13.47 | 15.76 | 18.39 |
+| 12:49 | 9.36 | 13.91 | 14.33 | 18.51 |
+
+Speed RMSE looked good (~2 km/h), yet time-to-50m is out by 2.7-5.3s on four of
+five runs. Both statements come from the same data.
+
+The reason is that **time is hypersensitive to speed error at low speed**: a
+2 km/h error at 5 km/h is worth roughly 2 seconds over just 10 metres. A
+respectable speed RMSE can conceal a five-second time error.
+
+**Consequence: the launch phase must be validated on time-to-distance, never on
+speed RMSE.**
+
+### Finding 5: where the model's error is generated
+
+Splitting the run at d=50m:
+
+| Run | launch measured | launch model | rest measured | rest model |
+|---|---|---|---|---|
+| 13:31 | 15.42 | 9.80 | 69.08 | 69.44 |
+| 09:31 | 8.86 | 9.80 | 73.64 | 69.44 |
+| 11:37 | 14.28 | 9.80 | 72.28 | 69.44 |
+| 12:17 | 13.47 | 9.80 | — | 69.44 |
+| 12:49 | 13.91 | 9.80 | 73.53 | 69.44 |
+
+Mean error: **−3.32s over the first 50m**, **−2.69s over the remaining 1028m**.
+
+So roughly **55% of the model's total optimism is generated in 4.6% of the
+course** — the launch is about **25× worse per metre** than everything after it.
+
+**Caveat:** runs with slow launches had fast rests and vice versa. That
+anti-correlation is what you would see if the d=50 marker is misplaced between
+runs by early distance-tagging error, so the exact launch/rest split is
+confounded even though the concentration is clear.
+
+### Finding 6: v0 explains only a fifth of the launch spread
+
+Model-predicted range in t50 driven by v0 variation alone: **1.38s**. Measured
+range: **6.56s**. So about 21%. The remaining ~5s is either genuine
+launch-technique variation or early distance-tagging error, and the current data
+cannot separate them.
+
+### How the sim's launch phase should be reshaped
+
+1. **Make v0 a per-run input, not a global average.** Biggest single win, and the
+   data is already in the GPX. Keep the average only as the fallback for
+   hypothetical runs with no recording.
+2. **Separate launch resistance from steady-state Crr.** Introduce an explicit
+   effective `launchResistance` (~0.0085 for the baseline car) distinct from the
+   tyre `crr` (0.0048), blending to the steady value above some speed. Give it
+   its own confidence chip — it is fitted, not looked up.
+3. **Validate the launch on time-to-distance.** Report t10/t25/t50/t100 predicted
+   vs measured per run. Speed RMSE is the wrong metric here and will mislead.
+4. **Keep the settling correction fixed when swapping vehicles.** It is a
+   property of the instrument and the start line, not of the car, so it is the
+   part that cancels in a vehicle-to-vehicle comparison.
+
+### How this applies to the 8-wheeler
+
+The transferable structure is: **gradient + settling correction (fixed, shared) ×
+effective launch resistance (per vehicle)**.
+
+To predict the 8-wheeler's getaway you need *its* effective launch resistance,
+defined the same way — **not** a tyre-datasheet Crr. Substituting a published
+figure into a model calibrated with an effective one would be an
+apples-to-oranges comparison and would silently drop bearing drag and wheel
+inertia.
+
+The useful consequence: because the effective coefficient absorbs rotational
+inertia, **a differential launch test measures exactly the right quantity with
+inertia included** — the previously scoped-out wheel-inertia difference comes
+along for free inside the fitted number, with no need to model it explicitly.
+
+Sizing for the eventual test: the fitted spread across five baseline runs is
+±0.002 in effective Crr, and the Xootr-vs-kart difference under discussion is
+roughly 0.008 — about 4× the baseline scatter. Detectable in principle, but not
+with GPS-derived distance at walking pace (see the getaway note above); the
+encoder and IMU channels in `LOGGER_SPEC.md` are what make it measurable.
+
+---
+
+## Session update: is the launch anomaly just a badly modelled gradient?
+
+Hypothesis put by the user. Tested directly. **Answer: largely yes — and the
+evidence goes further than the question did. The `altimeterSettlingScale`
+correction appears to be actively harmful, and removing it moves the model
+inside the measured range.**
+
+### Evidence 1: elevation quantisation swamps the signal
+
+The barometric altimeter resolves to 0.1m. Early GPX segments are short, because
+the car is slow, so the induced gradient error is large:
+
+| Segment | Length | Δele | gradient | quantisation error |
+|---|---|---|---|---|
+| 4.1-15.6m | 11.5m | −0.6 | 0.0522 | **±0.0087** |
+| 15.6-25.3m | 9.7m | −0.6 | 0.0619 | **±0.0103** |
+| 25.3-32.4m | 7.1m | −0.4 | 0.0563 | **±0.0141** |
+| 32.4-38.7m | 6.3m | −0.4 | 0.0635 | **±0.0159** |
+| 236.9-270.9m | 34m | −2.0 | 0.0588 | ±0.0029 |
+
+Nominal Crr is **0.0048**. A single 0.1m quantisation step on those early
+segments produces a gradient error **2-3× larger than the entire rolling
+resistance term being modelled.** And the error is worst exactly where the launch
+is, because segment length scales with speed.
+
+### Evidence 2: the correction invents ~2.3m of height, all of it early
+
+| Quantity | Value |
+|---|---|
+| Profile total drop (0 → 1078m) | 66.76m |
+| Integrated raw gradient | 66.91m |
+| Integrated **settling-corrected** gradient | 69.21m |
+| **Height invented by the correction** | **+2.31m** |
+| ...of which in the first 200m | +2.27m |
+
+A 2.3m barometric datum error is entirely ordinary. So **"the recorded start
+elevation is ~2.3m too low"** is a simpler hypothesis that fits the same facts as
+a two-parameter exponential decay — and is directly testable against a survey or
+a mapping DEM.
+
+### Evidence 3: the correction was fitted against the wrong metric
+
+Launch fit across all five runs, d=0-200m:
+
+| Gradient model | Crr | speed RMSE | **time RMSE** |
+|---|---|---|---|
+| Exponential settling (current) | 0.0048 | 3.96 | 4.08 |
+| Exponential settling (current) | 0.0085 | **3.85** | 3.82 |
+| Constant offset k=0.010 | 0.0048 | 4.21 | 2.74 |
+| Constant offset k=0.015 | 0.0085 | 4.14 | 2.82 |
+| **Raw gradient, no correction** | 0.0048 | 5.59 | **2.43** |
+| Raw gradient, no correction | 0 | 4.77 | 2.49 |
+
+The settling correction gives the **best speed fit and the worst time fit**. Raw
+gradient with nominal Crr is the best time fit by a wide margin.
+
+The original correction was fitted to close a *speed* deficit at checkpoints.
+Time-to-distance is what actually matters at launch (see the previous session
+note — a 2 km/h error at 5 km/h is worth ~2s over 10m). **Optimising speed at the
+expense of time is precisely the trap, and this correction is sitting in it.**
+
+### Evidence 4: GPS path length is inflated, and varies run to run
+
+Total recorded distance for the same physical course:
+
+| Run | 13:31 | 09:31 | 11:37 | 12:17 | 12:49 |
+|---|---|---|---|---|---|
+| total d | 1102.0 | 1112.1 | 1096.9 | 1072.0 | 1101.1 |
+
+**40m of spread (3.7%)** on a course that is identical every time. Position
+jitter adds spurious path length, worst at low speed where jitter is comparable
+to real displacement. So the *distance axis itself* is unreliable at launch — and
+distance, speed and gradient are all derived from that same position stream.
+
+This also explains a paradox in the earlier analysis: the model looked
+simultaneously **too slow on speed** (bias −2.8 to −4.3 km/h) and **too fast on
+time** (−3.3s to 50m). Inflated path length produces exactly both symptoms at
+once, because recorded speed and recorded distance are inflated together.
+
+### Evidence 5: one run is physically impossible
+
+Time to 50m against the absolute floor — raw gradient, **zero** rolling
+resistance, zero drag, free-rolling from that run's own v0:
+
+| Run | v0 | t50 measured | absolute floor | verdict |
+|---|---|---|---|---|
+| 13:31 | 3.67 | 15.42 | 11.95 | ok |
+| **09:31** | 3.93 | **8.86** | **11.83** | **impossible** |
+| 11:37 | 4.55 | 14.28 | 11.55 | ok |
+| 12:17 | 1.62 | 13.47 | 12.94 | ok |
+| 12:49 | 6.16 | 13.91 | 10.86 | ok |
+
+**Run 09:31 reaches 50m three seconds faster than a frictionless car could.** Its
+early samples show 3.3m at t=3s then 29m at t=6s — 25.7m in 3 seconds from
+walking pace, which needs ~5.7 m/s² on a hill that provides 0.8.
+
+It is still violated even with the settling correction applied (floor 9.54s vs
+8.86s measured). Note the correction lowers the physical floor by ~2.3s, i.e.
+part of what it does is make impossible runs look possible.
+
+**09:31 is not the run excluded from geometry fitting** —
+`EXCLUDED_GEOMETRY_RUN_IDX` is 3, which is 12:17. So the physically impossible
+run is currently inside every fit, including the one that produced the settling
+correction.
+
+### The headline consequence
+
+| Model | Run time |
+|---|---|
+| With settling correction (current) | 79.25s |
+| **Settling correction removed** | **84.21s** |
+| Settling removed + launch-fitted Crr 0.0085 | 86.06s |
+| **Measured** | **82.50-87.43s (mean 85.25)** |
+
+Removing the correction entirely puts the model **inside the measured range**.
+With settling on it is ~6s optimistic. The 3-8s optimism documented earlier is
+largely this correction.
+
+### Recommendation
+
+1. **Do not try to model the gradient better from this data.** It cannot be done:
+   quantisation error exceeds the signal, and the distance axis is unreliable.
+2. **Retire `altimeterSettlingScale`, or demote it to an off-by-default
+   experiment.** Test at minimum: removing it moves the headline from 79.25s to
+   84.21s and improves launch time RMSE from 3.82 to 2.43.
+3. **Exclude 09:31 from all fitting**, not just geometry. It breaks conservation
+   of energy in the first 50m.
+4. **Treat launch parameters as unidentified rather than fitted** until encoder
+   and IMU data exist. The previously proposed effective `launchResistance` of
+   0.0085 was fitted on top of the suspect correction and should not be trusted
+   as a transferable number.
+5. The independent check worth doing cheaply: **compare the recorded start
+   elevation against a survey or mapping DEM.** If the real start line is ~2.3m
+   higher than 96.8m, the settling story is vindicated as a datum error and can be
+   replaced with a one-line offset. If it is not, the correction should go.

@@ -1,0 +1,68 @@
+[
+ {
+  "name": "Quarry",
+  "d": 29,
+  "R": 24.85,
+  "kappa": 0.041745,
+  "dir": "left",
+  "fitHalfWindow_m": 15,
+  "ele": 94.424,
+  "d0": 11,
+  "d1": 46
+ },
+ {
+  "name": "Farmhouse/Croisdale",
+  "d": 377,
+  "R": 23.86,
+  "kappa": -0.042778,
+  "dir": "right",
+  "fitHalfWindow_m": 15,
+  "ele": 62.756,
+  "d0": 337,
+  "d1": 395
+ },
+ {
+  "name": "Orchard",
+  "d": 545,
+  "R": 16.45,
+  "kappa": 0.059438,
+  "dir": "left",
+  "fitHalfWindow_m": 10,
+  "ele": 57.113,
+  "d0": 526,
+  "d1": 561
+ },
+ {
+  "name": "Willow",
+  "d": 760,
+  "R": 32.23,
+  "kappa": 0.034414,
+  "dir": "left",
+  "fitHalfWindow_m": 20,
+  "ele": 37.422,
+  "d0": 741,
+  "d1": 777
+ },
+ {
+  "name": "Country",
+  "d": 860,
+  "R": 21.97,
+  "kappa": -0.046081,
+  "dir": "right",
+  "fitHalfWindow_m": 13,
+  "ele": 38.051,
+  "d0": 844,
+  "d1": 884
+ },
+ {
+  "name": "Chippy's",
+  "d": 1035,
+  "R": 21.08,
+  "kappa": 0.047588,
+  "dir": "left",
+  "fitHalfWindow_m": 13,
+  "ele": 29.179,
+  "d0": 998,
+  "d1": 1052
+ }
+]
