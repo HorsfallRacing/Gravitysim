@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Concept Lab — Gravity Racer</title>
+<title>Gravity Vehicle Concept Lab</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -143,11 +143,22 @@ td.n,th.n{text-align:right;font-family:var(--mono)}
 .map-panel .swatches i{width:9px;height:9px;border-radius:2px;flex:none;opacity:.75}
 .map-panel .rng{padding-top:3px;border-top:1px solid #dfe3e9}
 .map-panel .sw.brake{background:repeating-linear-gradient(90deg,#c0392b 0 2px,transparent 2px 5px);height:3px}
+.map-panel .sw.scrub{background:repeating-linear-gradient(90deg,#d68910 0 2px,transparent 2px 5px);height:3px}
+.map-panel .mp-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.map-panel .mp-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6472}
+.map-panel .mp-toggle{width:18px;height:18px;flex:none;padding:0;margin:0;font-size:13px;line-height:1;
+  border:1px solid #c3c9d2;border-radius:4px;background:#f3f5f8;color:#1a1d24;cursor:pointer}
+.map-panel .mp-toggle:hover{border-color:#2f7dd1;color:#2f7dd1}
+.map-panel .panel-body{margin-top:8px}
+.map-panel.collapsed{padding:6px 8px}
+.map-panel.collapsed .panel-body{display:none}
 @media (prefers-color-scheme:dark){.map-panel{background:rgba(24,27,33,.94);color:#e8eaee}
   .map-panel .rng, .map-panel .swatches{border-top-color:#333a45}
   .map-panel .ramp{border-color:rgba(255,255,255,.25)}
   .map-panel button{background:#242833;border-color:#39404d;color:#e8eaee}
-  .map-panel .scale{color:#9aa1ab;border-top-color:#333a45}}
+  .map-panel .scale{color:#9aa1ab;border-top-color:#333a45}
+  .map-panel .mp-title{color:#9aa1ab}
+  .map-panel .mp-toggle{background:#242833;border-color:#39404d;color:#e8eaee}}
 #map{height:440px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--surface-2)}
 .chartbox{height:280px;position:relative}
 .drop{border:1.5px dashed var(--border);border-radius:var(--radius-md);padding:13px;text-align:center;
@@ -168,20 +179,48 @@ td.n,th.n{text-align:right;font-family:var(--mono)}
 details.prov-detail{margin-top:12px;font-size:12px;color:var(--text-muted)}
 details.prov-detail summary{cursor:pointer;color:var(--accent);font-size:12px}
 details.prov-detail li{margin:3px 0}
+
+/* site banner -- shared with the rest of the Horsfall Racing site. Fixed
+   860x100 there, but scaled responsively here rather than reproducing the
+   legacy fixed-width table that forced horizontal scroll on mobile. */
+.site-banner{display:block;max-width:860px;width:100%;height:auto;margin:0 auto 14px}
+
+/* Lap Speed Calculator -- merged in from GpxBenchmark.html, restyled onto
+   this page's own tokens (was hardcoded hex, so it went invisible/wrong in
+   dark mode) rather than carried over as a separate design system. */
+.lap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:14px}
+.lap-box{display:flex;flex-direction:column}
+.lap-box label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;
+  margin-bottom:6px;font-weight:700}
+.lap-box small{font-size:10.5px;color:var(--text-faint);margin-top:4px}
+.lap-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin:14px 0}
+.lap-metric{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);
+  padding:14px 16px;text-align:center}
+.lap-metric-label{font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;
+  margin-bottom:8px;font-weight:700}
+.lap-metric-value{width:100%;border:none;background:transparent;text-align:center;font-size:22px;
+  font-weight:700;color:var(--text);font-family:var(--mono);padding:0}
+.lap-metric-value:focus{outline:none}
+.lap-metric-unit{font-size:10.5px;color:var(--text-faint);margin-top:2px;display:block}
+.lap-metric-primary{background:var(--accent-soft);border-color:var(--accent)}
+.lap-metric-primary .lap-metric-value{font-size:28px;color:var(--accent-dark)}
+.lap-metric-primary .lap-metric-label{color:var(--accent-dark)}
 </style>
 </head>
 <body>
 <div class="wrap">
 
+<img class="site-banner" src="Images/Tools.jpg" width="860" height="100" alt="Horsfall Racing">
+
 <header class="top">
   <div>
-    <h1>Concept Lab <span class="pill" id="courseName">course</span></h1>
+    <h1>Gravity Vehicle Concept Lab <span class="pill" id="courseName">course</span></h1>
     <p class="sub">Compare vehicle concepts against a reference on surveyed terrain.
        Predictions are relative — read the Δ, not the absolute time.</p>
   </div>
   <div class="row">
-    <button class="act" id="btnExport">Export JSON</button>
-    <button class="act" id="btnImport">Import</button>
+    <button class="act" id="btnExport">Export Concept</button>
+    <button class="act" id="btnImport">Import Concept</button>
     <input type="file" id="fileImport" accept=".json" hidden>
   </div>
 </header>
@@ -206,6 +245,10 @@ details.prov-detail li{margin:3px 0}
 
     <div class="card">
       <h2>Vehicle</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button type="button" class="tab" id="wheels4Btn">4 wheels</button>
+        <button type="button" class="tab" id="wheels8Btn">8 wheels</button>
+      </div>
       <div id="vehicleFields"></div>
       <details class="prov-detail">
         <summary>What the badges mean, and how to change them</summary>
@@ -233,7 +276,7 @@ details.prov-detail li{margin:3px 0}
     </div>
 
     <div class="card">
-      <h2>Compare against a run</h2>
+      <h2>Compare against a real world run</h2>
       <div class="fld" style="grid-template-columns:1fr;margin-bottom:8px"><input type="text" id="runName" placeholder="Name this run (optional)"></div><div class="drop" id="drop">Drop a GPX here<br><span style="font-size:11px">or click to choose</span></div>
       <input type="file" id="gpxInput" accept=".gpx" multiple hidden>
       <div id="gpxStatus" class="note"></div>
@@ -306,6 +349,48 @@ details.prov-detail li{margin:3px 0}
 </div>
 </div>
 
+<!-- Lap Speed Calculator -- a standalone tool, unrelated to the concept
+     comparison above, kept below it and matched to its width. -->
+<div class="wrap">
+  <div class="card">
+    <h2>Lap Speed Calculator</h2>
+    <p class="note" style="margin-top:-4px">Average speed from any distance and lap time — not tied to this course or the concepts above.</p>
+
+    <div class="row" style="margin:12px 0 14px">
+      <button type="button" class="tab active" id="lapUnitImperial">Miles / MPH</button>
+      <button type="button" class="tab" id="lapUnitMetric">Kilometres / KM/H</button>
+    </div>
+
+    <div class="lap-grid">
+      <div class="lap-box">
+        <label for="distance">Distance</label>
+        <input type="number" step="0.001" id="distance" placeholder="0.000">
+        <small id="distanceUnit">Miles</small>
+      </div>
+      <div class="lap-box">
+        <label for="time">Lap time</label>
+        <input type="number" step="0.001" id="time" placeholder="0.000">
+        <small>Seconds</small>
+      </div>
+    </div>
+
+    <div class="lap-metrics">
+      <div class="lap-metric lap-metric-primary">
+        <div class="lap-metric-label">Average speed</div>
+        <input type="text" id="lapPrimary" class="lap-metric-value" readonly>
+        <span class="lap-metric-unit" id="lapPrimaryUnit">MPH</span>
+      </div>
+      <div class="lap-metric">
+        <div class="lap-metric-label">Equivalent</div>
+        <input type="text" id="lapSecondary" class="lap-metric-value" readonly>
+        <span class="lap-metric-unit" id="lapSecondaryUnit">KM/H</span>
+      </div>
+    </div>
+
+    <button type="button" class="act" id="lapClear">Clear fields</button>
+  </div>
+</div>
+
 <script>
 /* ===================================================================
    COURSE ASSET — frozen topology. Injected by pipeline/injectcourse.js.
@@ -354,27 +439,101 @@ const radiusAt = d => {
   return k < 1 / R_MAX ? R_MAX : 1 / k;
 };
 
+// Total mass actually being accelerated/braked/held on the road. 8-wheel
+// concepts carry the swap mechanism's weight everywhere on the course, not
+// just where it's actively deployed.
+function effMass(p) { return p.mass + (p.wheels8 ? (p.deployMass || 0) : 0); }
+
 function accelAt(d, v_kmh, p, brakeOn) {
   const v = v_kmh / 3.6;
-  const Fg = p.mass * G * gradAt(d);
+  const mEff = effMass(p);
+  const Fg = mEff * G * gradAt(d);
   const windTo = (p.windDir + 180) % 360;
   const tail = (p.windSpeed / 3.6) * Math.cos((windTo - headingAt(d)) * Math.PI / 180);
   const vRel = v - tail;
-  const Fd = 0.5 * RHO * p.cda * vRel * Math.abs(vRel);
-  const Frr = p.crr * p.mass * G;
-  const Fb = brakeOn ? (p.brakeConfidence / 100) * Math.max(0, p.mu) * G * p.mass : 0;
-  return (Fg - Fd - Frr - Fb) / p.mass;
+  const Fd = 0.5 * RHO * p.cd * p.frontalArea * vRel * Math.abs(vRel);
+  // 8-wheel concepts run two wheelsets: low-rr wheels down on the straights,
+  // grip (kart) tyres down for corners and the lead distance before them.
+  // p.gripDown is precomputed once per simulate() call -- see computeGripDown.
+  const gripTyreDown = p.wheels8 && p.gripDown && p.gripDown[Math.max(0, Math.min(N(), Math.round(d)))];
+  const Frr = (gripTyreDown ? p.crrCorner : p.crr) * mEff * G;
+  // Downforce (ClA) adds to normal load, not drag -- deliberately no
+  // induced-drag coupling (see the ClA field's note); ground speed, not
+  // wind-relative, for the same reason crosswind-on-drag is left second-order.
+  const Fdown = Math.max(0, p.cla || 0) * 0.5 * RHO * v * v;
+  const Nload = mEff * G + Fdown;
+  const Fb = brakeOn ? (p.brakeConfidence / 100) * Math.max(0, p.mu) * Nload : 0;
+  return (Fg - Fd - Frr - Fb) / mEff;
+}
+
+// 8-wheel concepts: grip (kart) tyres go down wherever the LOW-RR WHEELS'
+// OWN grip (muStraight) would be the thing holding the car back -- not a
+// fixed radius. Radius alone can't tell two corners apart that need very
+// different treatment: Quarry and Farmhouse/Croisdale have almost the same
+// radius (~23m), but Quarry is exited around 40 km/h off a short launch
+// while Farmhouse/Croisdale is entered off the fastest part of the course --
+// only the second actually demands more lateral grip than a low-rr wheel has.
+//
+// Non-circular by construction: run a SHADOW forward pass that assumes the
+// low-rr wheels are down everywhere (mu -> muStraight, no swapping), and look
+// for where that pass's own trace is measurably flatter than free coasting
+// would be -- i.e. where cornerLimit(muStraight) is actively clamping it,
+// the same "is this point being held back" test simulate() already uses for
+// braking[d]. That tells us where the low-rr wheels alone can't hold the
+// line, independent of what the REAL (dual-wheelset) car ends up doing.
+// swapDistance then extends that zone backward for swap lead time, same as
+// before: one backward sweep tracking distance-until-the-next-such-point.
+function computeGripDown(p) {
+  const pShadow = { ...p, mu: p.muStraight, gripDown: undefined };
+  const shadowFwd = forwardEnvelope(pShadow);
+  const gripNeeded = new Uint8Array(N() + 1);
+  for (let d = 0; d <= N(); d++) {
+    const v0 = sampleTrace(shadowFwd, d);
+    const v1 = sampleTrace(shadowFwd, Math.min(N(), d + 1));
+    const aTrace = ((v1 / 3.6) ** 2 - (v0 / 3.6) ** 2) / 2;   // over a 1 m step, m/s^2
+    const aCoast = accelAt(d, v0, pShadow, false);
+    gripNeeded[d] = aTrace < aCoast - 0.15 ? 1 : 0;
+  }
+  const down = new Uint8Array(N() + 1);
+  let sinceCorner = Infinity;
+  for (let d = N(); d >= 0; d--) {
+    sinceCorner = gripNeeded[d] ? 0 : (sinceCorner === Infinity ? Infinity : sinceCorner + 1);
+    down[d] = sinceCorner <= p.swapDistance ? 1 : 0;
+  }
+  return down;
 }
 
 // Corner speed limit. gripUsage is the DRIVER's share of available grip —
 // separated from mu, which is the tyre's. The old model conflated the two in a
 // per-corner brake%, which could not be held constant while swapping vehicles.
+//
+// Downforce makes both the slide and rollover limits implicit in v (more speed
+// -> more downforce -> more grip/restoring moment -> more speed), but both are
+// still closed-form: v^2 = a*r / (1 - k*ClA*r), where k differs by which limit
+// it is. If ClA/radius push the denominator to <=0 the aero demand has run
+// past what this point-mass model can resolve (real tyre/structural limits
+// would bind first, unmodelled) -- capped at the same 250 km/h ceiling the
+// backward envelope already treats as effectively unconstrained.
+//
+// Downforce scales aGrip and aRoll by the exact same factor (1 + Fdown/(m*G)),
+// since both are proportional to total normal load -- so it raises both limits
+// together without changing which one binds (see renderGeometry's margin,
+// which is therefore unaffected by ClA).
 function cornerLimit(d, p) {
   const r = radiusAt(d);
   const use = p.gripUsage / 100;
-  const vSlide = Math.sqrt(Math.max(0, p.mu) * use * G * r);
+  const mu = Math.max(0, p.mu);
+  const cla = Math.max(0, p.cla || 0);
+  const mEff = effMass(p);
+  const k = mu * use * RHO * cla / (2 * mEff);
+  const denomSlide = 1 - k * r;
+  const vSlide = denomSlide > 0.02 ? Math.sqrt(mu * use * G * r / denomSlide) : 250 / 3.6;
+
   const aRoll = (p.trackF / 2000) / (p.cgHeight / 1000) * G;   // rollover threshold
-  const vRoll = Math.sqrt(Math.max(0, aRoll) * r);
+  const kRoll = (p.trackF / 2000) * RHO * cla / (2 * mEff * (p.cgHeight / 1000));
+  const denomRoll = 1 - kRoll * r;
+  const vRoll = denomRoll > 0.02 ? Math.sqrt(Math.max(0, aRoll) * r / denomRoll) : 250 / 3.6;
+
   return Math.min(vSlide, vRoll) * 3.6;
 }
 
@@ -419,22 +578,40 @@ function sampleTrace(tr, d) {
 }
 
 function simulate(p) {
+  if (p.wheels8) p.gripDown = computeGripDown(p);
+  const mEff = effMass(p);
   const fin = COURSE.finish_m;
   const fwd = forwardEnvelope(p), bwd = backwardEnvelope(p);
-  const v = [];
-  for (let d = 0; d <= N(); d++) v.push(Math.min(sampleTrace(fwd, d), sampleTrace(bwd, d)));
+  const v = [], fwdV = [], bwdV = [];
+  for (let d = 0; d <= N(); d++) {
+    const fv = sampleTrace(fwd, d), bv = sampleTrace(bwd, d);
+    fwdV.push(fv); bwdV.push(bv); v.push(Math.min(fv, bv));
+  }
 
-  // "Braking" = the trace is shedding more speed than gravity, drag and rolling
-  // resistance alone would. Comparing the two envelopes instead (b < f) misses
-  // the corner-entry clamp: the forward pass caps speed at the grip limit
-  // instantaneously, without requiring the deceleration that reaching it needs,
-  // so corners sitting exactly on their limit reported no braking at all.
+  // Two different reasons a point sheds more speed than gravity/drag/rr alone
+  // would, worth telling apart because only one of them is what a driver would
+  // call "braking":
+  // - BRAKING: the backward (max-brake) envelope is what's binding here --
+  //   genuine anticipatory brake-pedal use, needed NOW so a downstream
+  //   constraint can be met in time.
+  // - SCRUBBING: the forward pass's own corner-entry clamp is what's binding
+  //   instead -- the corner's own lateral grip is absorbing speed the car
+  //   arrived with, with no pedal input implied. This is what a driver taking
+  //   a corner flat-out, right at its limit, experiences as "I didn't brake."
+  // Old code lumped these into one "braking" flag (backward < forward missed
+  // the corner-entry clamp, since the forward pass caps speed at the grip
+  // limit instantaneously without needing deceleration to reach it -- so a
+  // corner sitting exactly on its limit reported no braking at all). Splitting
+  // them is what actually answers "why does the model show braking at a
+  // corner I never touch the pedal at": it's scrubbing, not braking.
   const braking = new Array(v.length).fill(false);
+  const scrubbing = new Array(v.length).fill(false);
   for (let d = 0; d < v.length - 1; d++) {
+    if (bwdV[d] < fwdV[d] - 0.05) { braking[d] = true; continue; }
     const v1 = v[d] / 3.6, v2 = v[d + 1] / 3.6;
     const aTrace = (v2 * v2 - v1 * v1) / 2;            // over a 1 m step, m/s^2
     const aCoast = accelAt(d, v[d], p, false);
-    braking[d] = aTrace < aCoast - 0.15;
+    scrubbing[d] = aTrace < aCoast - 0.15;
   }
   // Scan from d=1, not d=0. The car starts at rest by definition, so testing
   // station 0 reports every standing start as a stall.
@@ -452,21 +629,26 @@ function simulate(p) {
   let eAvail = 0, eDrag = 0, eRR = 0, eCorner = 0, eBrake = 0;
   const inCorner = d => COURSE.corners.some(c => d >= c.d0_m && d <= c.d1_m);
   for (let d = 1; d <= fin; d++) {
-    eAvail += p.mass * G * gradAt(d - 0.5);
+    eAvail += mEff * G * gradAt(d - 0.5);
     const vm = ((v[d - 1] + v[d]) / 2) / 3.6;
     const windTo = (p.windDir + 180) % 360;
     const tail = (p.windSpeed / 3.6) * Math.cos((windTo - headingAt(d - 0.5)) * Math.PI / 180);
     const vRel = vm - tail;
-    eDrag += 0.5 * RHO * p.cda * vRel * Math.abs(vRel);
-    eRR += p.crr * p.mass * G;
+    eDrag += 0.5 * RHO * p.cd * p.frontalArea * vRel * Math.abs(vRel);
+    const gripTyreDown = p.wheels8 && p.gripDown && p.gripDown[Math.round(d - 0.5)];
+    const crrNow = gripTyreDown ? p.crrCorner : p.crr;
+    eRR += crrNow * mEff * G;
     // "extra" restraint the trace implies beyond gravity/drag/rr
     const dv = (v[d] / 3.6) - (v[d - 1] / 3.6);
-    const need = p.mass * vm * dv;                       // × 1 m
-    const have = p.mass * G * gradAt(d - 0.5) - 0.5 * RHO * p.cda * vRel * Math.abs(vRel) - p.crr * p.mass * G;
+    const need = mEff * vm * dv;                       // × 1 m
+    const have = mEff * G * gradAt(d - 0.5) - 0.5 * RHO * p.cd * p.frontalArea * vRel * Math.abs(vRel) - crrNow * mEff * G;
     const extra = Math.max(0, have - need);
-    if (inCorner(d)) eCorner += extra; else if (braking[d]) eBrake += extra;
+    // Energy accounting doesn't care which of the two shed the speed, only
+    // that something outside the named corner span did -- keep this bucket's
+    // total exactly as before the braking/scrubbing split.
+    if (inCorner(d)) eCorner += extra; else if (braking[d] || scrubbing[d]) eBrake += extra;
   }
-  return { v, braking, cum, time, stall,
+  return { v, braking, scrubbing, cum, time, stall,
            energy: { avail: eAvail, drag: eDrag, rr: eRR, cornering: eCorner, braking: eBrake } };
 }
 
@@ -476,15 +658,24 @@ function simulate(p) {
 // 'none' removes the badge entirely, for a field whose provenance you don't
 // want to claim either way.
 const PROV = ['measured', 'independent', 'estimated', 'fitted', 'assumed', 'none'];
+// showIf: fields that only apply to 8-wheel concepts -- filtered out of the
+// input rail and the breakeven/sensitivity/waterfall panels for a 4-wheeler.
 const VEHICLE_FIELDS = [
-  { k: 'mass',       label: 'Mass (total)',   unit: 'kg', step: 0.1,   min: 20,  max: 500 },
-  { k: 'cda',        label: 'CdA',            unit: 'm²', step: 0.001, min: 0.03, max: 0.5 },
+  { k: 'mass',       label: 'Mass (chassis)', unit: 'kg', step: 0.1,   min: 20,  max: 500 },
+  { k: 'cd',         label: 'Cd',             unit: '',   step: 0.01,  min: 0.1, max: 1.5 },
+  { k: 'frontalArea',label: 'Frontal area',   unit: 'm²', step: 0.001, min: 0.05, max: 1.0 },
+  { k: 'cla',        label: 'ClA (downforce)',unit: 'm²', step: 0.001, min: 0,   max: 1.0 },
   { k: 'crr',        label: 'Crr',            unit: '',   step: 0.0001, min: 0.001, max: 0.05 },
   { k: 'mu',         label: 'μ (tyre grip)',  unit: '',   step: 0.01,  min: 0.1, max: 1.6 },
   { k: 'wheelbase',  label: 'Wheelbase',      unit: 'mm', step: 1,     min: 600, max: 3000 },
   { k: 'trackF',     label: 'Track (front)',  unit: 'mm', step: 1,     min: 400, max: 2000 },
   { k: 'cgHeight',   label: 'CoG height',     unit: 'mm', step: 5,     min: 100, max: 900 },
+  { k: 'crrCorner',   label: 'Crr (grip tyres, cornering)', unit: '',  step: 0.0001, min: 0.001, max: 0.05, showIf: p => p.wheels8 },
+  { k: 'muStraight',  label: 'μ (low-rr wheels)',           unit: '',  step: 0.01,   min: 0.05,  max: 1.6,  showIf: p => p.wheels8 },
+  { k: 'swapDistance',label: 'Swap lead distance',          unit: 'm', step: 1,      min: 0,     max: 100,  showIf: p => p.wheels8 },
+  { k: 'deployMass',  label: 'Swap mechanism mass',         unit: 'kg',step: 0.1,    min: 0,     max: 50,   showIf: p => p.wheels8 },
 ];
+const visibleFields = params => VEHICLE_FIELDS.filter(f => !f.showIf || f.showIf(params));
 const DRIVER_FIELDS = [
   { k: 'gripUsage',       label: 'Grip usage',      unit: '%',    step: 1, min: 30, max: 100 },
   { k: 'brakeConfidence', label: 'Brake confidence',unit: '%',    step: 1, min: 30, max: 100 },
@@ -515,10 +706,18 @@ function referenceConcept() {
   // 1.37 km/h RMS across all six corners with nothing else fitted.
   return {
     id: 'ref-4wheel', name: 'Bertrandt', isReference: true,
-    params: { mass: 125.3, cda: 0.1125, crr: 0.0048, mu: 0.795,
-              wheelbase: 1345, trackF: 1060, cgHeight: 300 },
-    prov: { mass: 'measured', cda: 'independent', crr: 'independent',
-            mu: 'fitted', wheelbase: 'measured', trackF: 'measured', cgHeight: 'estimated' },
+    // Cd x frontal area reproduces the old measured CdA=0.1125 exactly, but the
+    // split itself is not independently verified -- update both from CAD/CFD.
+    params: { mass: 125.3, cd: 0.45, frontalArea: 0.25, cla: 0, crr: 0.0048, mu: 0.795,
+              wheelbase: 1345, trackF: 1060, cgHeight: 300,
+              // 8-wheel swap gear defaults -- unused while wheels8 is off, but
+              // populated so toggling it on doesn't land on blank/NaN inputs.
+              // muStraight well below mu=0.795: low-rr wheels traded grip away
+              // for rolling resistance, that's the whole point of swapping.
+              wheels8: false, crrCorner: 0.012, muStraight: 0.3, swapDistance: 15, deployMass: 5 },
+    prov: { mass: 'measured', cd: 'estimated', frontalArea: 'estimated', cla: 'measured',
+            crr: 'independent', mu: 'fitted', wheelbase: 'measured', trackF: 'measured', cgHeight: 'estimated',
+            crrCorner: 'estimated', muStraight: 'assumed', swapDistance: 'assumed', deployMass: 'estimated' },
   };
 }
 const DEFAULT_DRIVER = { gripUsage: 100, brakeConfidence: 90, windSpeed: 0, windDir: 225 };
@@ -563,16 +762,19 @@ function makeRun(o) {
   };
 }
 // Keep localStorage small: at most MAX_PTS samples per run, coordinates rounded.
+// Shared by saveRuns() and the Export Concept bundle -- same trimmed shape either way.
 const MAX_PTS = 400;
+function serializeRuns() {
+  return runs.map(r => {
+    const step = Math.max(1, Math.ceil(r.pts.length / MAX_PTS));
+    const pts = r.pts.filter((_, i) => i % step === 0 || i === r.pts.length - 1)
+      .map(p => ({ d: +p.d.toFixed(1), v: +p.v.toFixed(2) }));
+    return { label: r.label, visible: r.visible, courseId: r.courseId, pts };
+  });
+}
 function saveRuns() {
-  try {
-    localStorage.setItem(RUNS_KEY, JSON.stringify(runs.map(r => {
-      const step = Math.max(1, Math.ceil(r.pts.length / MAX_PTS));
-      const pts = r.pts.filter((_, i) => i % step === 0 || i === r.pts.length - 1)
-        .map(p => ({ d: +p.d.toFixed(1), v: +p.v.toFixed(2) }));
-      return { label: r.label, visible: r.visible, courseId: r.courseId, pts };
-    })));
-  } catch (e) { /* quota or storage unavailable -- runs stay session-only */ }
+  try { localStorage.setItem(RUNS_KEY, JSON.stringify(serializeRuns())); }
+  catch (e) { /* quota or storage unavailable -- runs stay session-only */ }
 }
 function loadRuns() {
   try {
@@ -620,18 +822,41 @@ function renderRuns() {
   });
 }
 let runs = loadRuns();
+// CdA was split into Cd x frontal area, and ClA (downforce) added. Concepts
+// saved (or exported) before that change carry a bare `cda` and no `cla` --
+// back out a Cd from a placeholder frontal area so the product, and therefore
+// every existing concept's calibrated drag, is preserved exactly rather than
+// silently changing on load.
+function migrateConcepts(concepts) {
+  concepts.forEach(c => {
+    if (c.id === 'ref-4wheel' && c.name === '4-wheeler (baseline)') c.name = 'Bertrandt';
+    if (c.params && c.params.cda !== undefined && c.params.cd === undefined) {
+      const area = c.params.frontalArea || 0.25;
+      c.params.frontalArea = area;
+      c.params.cd = c.params.cda / area;
+      if (c.prov && c.prov.cda && !c.prov.cd) { c.prov.cd = c.prov.cda; c.prov.frontalArea = c.prov.cda; }
+    }
+    if (c.params && c.params.cla === undefined) c.params.cla = 0;
+    if (c.params && c.params.wheels8 === undefined) {
+      c.params.wheels8 = false;
+      c.params.crrCorner = 0.012; c.params.swapDistance = 15; c.params.deployMass = 5;
+    }
+    // Swap trigger moved from a fixed deployRadius to muStraight (the low-rr
+    // wheels' own grip) -- see computeGripDown. Concepts saved under the old
+    // scheme carry deployRadius but not muStraight; the orphaned field is
+    // harmless (nothing reads it any more).
+    if (c.params && c.params.muStraight === undefined) c.params.muStraight = 0.3;
+  });
+  return concepts;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem('conceptlab.v1');
     if (!raw) return null;
     const o = JSON.parse(raw);
     if (!o.concepts || !o.concepts.length) return null;
-    // the reference car was renamed; carry saved state over rather than
-    // stranding it under the old label
-    o.concepts.forEach(c => {
-      if (c.id === 'ref-4wheel' && c.name === '4-wheeler (baseline)') c.name = 'Bertrandt';
-    });
-    return { concepts: o.concepts, driver: { ...DEFAULT_DRIVER, ...o.driver }, activeIdx: 0 };
+    return { concepts: migrateConcepts(o.concepts), driver: { ...DEFAULT_DRIVER, ...o.driver }, activeIdx: 0 };
   } catch (e) { return null; }
 }
 const active = () => state.concepts[state.activeIdx];
@@ -698,8 +923,13 @@ function renderInputs() {
   document.getElementById('cName').value = c.name;
   document.getElementById('cName').oninput = e => { c.name = e.target.value; save(); renderTabs(); };
 
+  document.getElementById('wheels4Btn').classList.toggle('active', !c.params.wheels8);
+  document.getElementById('wheels8Btn').classList.toggle('active', !!c.params.wheels8);
+  document.getElementById('wheels4Btn').onclick = () => { c.params.wheels8 = false; save(); renderInputs(); renderOutputs(); };
+  document.getElementById('wheels8Btn').onclick = () => { c.params.wheels8 = true; save(); renderInputs(); renderOutputs(); };
+
   const vf = document.getElementById('vehicleFields'); vf.innerHTML = '';
-  VEHICLE_FIELDS.forEach(f => vf.appendChild(fieldRow(f, c.params[f.k], c.prov[f.k] || 'none',
+  visibleFields(c.params).forEach(f => vf.appendChild(fieldRow(f, c.params[f.k], c.prov[f.k] || 'none',
     v => { c.params[f.k] = v; save(); renderOutputs(); },
     p => { c.prov[f.k] = p; save(); renderInputs(); renderOutputs(); })));
 
@@ -793,8 +1023,10 @@ function renderBreakeven(c, ref, cur, refRes) {
   const base = cur.time, rt = refRes.time;
   if (base === null || rt === null) { el.innerHTML = '<p class="note">No result to test.</p>'; return; }
 
+  const keys = ['mu', 'crr', 'cd', 'frontalArea', 'mass', 'cla'];
+  if (c.params.wheels8) keys.push('crrCorner', 'muStraight', 'swapDistance', 'deployMass');
   const rows = [];
-  for (const k of ['mu', 'crr', 'cda', 'mass']) {
+  for (const k of keys) {
     const f = VEHICLE_FIELDS.find(x => x.k === k);
     // Sweep the whole range first, then find zero crossings. Comparing each
     // sample only with its neighbour matters: seeding from the current value
@@ -843,13 +1075,29 @@ function renderWaterfall(c, ref, cur, refRes) {
     el.innerHTML = ''; note.textContent = 'Select a non-reference concept to attribute its difference.';
     return;
   }
-  const keys = VEHICLE_FIELDS.map(f => f.k).filter(k => Math.abs(c.params[k] - ref.params[k]) > 1e-9);
-  if (!keys.length) { el.innerHTML = ''; note.textContent = 'Identical to the reference.'; return; }
+  // 8-wheel-only fields (crrCorner etc.) are excluded from the diff unless
+  // the mode switch itself is relevant to at least one side -- comparing
+  // their placeholder values between two 4-wheelers would be noise.
+  const relevant = f => !f.showIf || f.showIf(c.params) || f.showIf(ref.params);
+  const keys = VEHICLE_FIELDS.filter(relevant).map(f => f.k).filter(k => Math.abs(c.params[k] - ref.params[k]) > 1e-9);
+  const wheelModeChanged = !!c.params.wheels8 !== !!ref.params.wheels8;
+  if (!keys.length && !wheelModeChanged) { el.innerHTML = ''; note.textContent = 'Identical to the reference.'; return; }
 
   const p = { ...fullParams(ref) };
   let prev = simulate(p).time;
   const start = prev;
   const steps = [];
+  // Step the wheel-mode switch first, so any 8-wheel-only field diffs below
+  // (crrCorner, muStraight, ...) are stepped with wheels8 already on --
+  // otherwise they'd be applied to a 4-wheel p that ignores them entirely.
+  if (wheelModeChanged) {
+    p.wheels8 = c.params.wheels8;
+    const t = simulate(p).time;
+    steps.push({ k: 'wheels8', label: c.params.wheels8 ? '8-wheel swap gear' : '4-wheel (no swap gear)',
+                 from: ref.params.wheels8 ? '8-wheel' : '4-wheel', to: c.params.wheels8 ? '8-wheel' : '4-wheel',
+                 delta: (t === null || prev === null) ? null : t - prev, prov: undefined });
+    prev = t;
+  }
   for (const k of keys) {
     p[k] = c.params[k];
     const t = simulate(p).time;
@@ -924,22 +1172,25 @@ const cornerBands = {
 // the trace — it is wherever the backward (max-brake) envelope starts binding
 // on the approach, not a fitted brake marker.
 function cornerStates(cur, p) {
+  const held = d => cur.braking[d] || cur.scrubbing[d];
   return COURSE.corners.map(c => {
     const apex = c.apex_m;
     let brakeStart = null;
-    // walk back from the apex while the max-brake envelope is what limits us
+    // walk back from the apex while EITHER mechanism is holding speed down
     let d = apex;
-    while (d > 0 && !cur.braking[d] && apex - d < 15) d--;   // allow a small gap at the apex
-    if (cur.braking[d]) {
-      while (d > 0 && cur.braking[d]) d--;
+    while (d > 0 && !held(d) && apex - d < 15) d--;   // allow a small gap at the apex
+    if (held(d)) {
+      while (d > 0 && held(d)) d--;
       brakeStart = d + 1;
     }
-    let maxDecel = 0;
+    let maxDecel = 0, isBraking = false, isScrubbing = false;
     if (brakeStart !== null) {
       for (let k = brakeStart; k < apex; k++) {
         const v1 = cur.v[k] / 3.6, v2 = cur.v[k + 1] / 3.6;
         const a = (v1 * v1 - v2 * v2) / 2;       // over a 1 m step
         if (a > maxDecel) maxDecel = a;
+        if (cur.braking[k]) isBraking = true;
+        if (cur.scrubbing[k]) isScrubbing = true;
       }
     }
     return {
@@ -948,9 +1199,13 @@ function cornerStates(cur, p) {
       predictedApex: cur.v[apex],
       brakeStart,
       brakeDistance: brakeStart === null ? 0 : apex - brakeStart,
-      maxDecel,
+      maxDecel, isBraking, isScrubbing,
     };
   });
+}
+function retardLabel(z) {
+  if (z.isBraking && z.isScrubbing) return 'Braking + scrubbing';
+  return z.isBraking ? 'Braking' : 'Scrubbing';
 }
 
 let chart = null;
@@ -1061,7 +1316,7 @@ function renderSensitivity(cur) {
   // them into one swing. They are not symmetric — a parameter can cost far more
   // when it moves the wrong way than it gains moving the right way, and that
   // asymmetry is the whole point of the panel.
-  const rows = VEHICLE_FIELDS.map(f => {
+  const rows = visibleFields(c.params).map(f => {
     const dnRaw = simulate({ ...p, [f.k]: c.params[f.k] * (1 - SENS_PCT / 100) }).time;
     const upRaw = simulate({ ...p, [f.k]: c.params[f.k] * (1 + SENS_PCT / 100) }).time;
     // A +/-10% nudge can tip a concept into a no-finish state even when the
@@ -1228,18 +1483,31 @@ function addMapControls() {
     onAdd() {
       const el = L.DomUtil.create('div', 'map-panel');
       el.innerHTML =
-        `<label><input type="checkbox" data-l="speed" checked><i class="sw grad"></i>Speed</label>
-         <label><input type="checkbox" data-l="braking" checked><i class="sw brake"></i>Braking</label>
+        `<div class="mp-head"><span class="mp-title">Map legend</span>
+           <button type="button" class="mp-toggle" id="mapPanelToggle" title="Collapse legend">&minus;</button></div>
+         <div class="panel-body">
+         <label><input type="checkbox" data-l="speed" checked><i class="sw grad"></i>Speed</label>
+         <label><input type="checkbox" data-l="braking" checked><i class="sw brake"></i><i class="sw scrub"></i>Braking &amp; scrubbing</label>
          <label><input type="checkbox" data-l="corners" checked><i class="sw corners"></i>Corners</label>
          <label><input type="checkbox" data-l="route" checked><i class="sw dash"></i>Full route</label>
          <label><input type="checkbox" data-l="marks" checked><i class="sw" style="background:#1f7a3d"></i>Start / finish</label>
          <button type="button" id="mapRecentre">Re-centre</button>
-         <div class="scale" id="mapScale"></div>`;
+         <div class="scale" id="mapScale"></div>
+         </div>`;
       L.DomEvent.disableClickPropagation(el);
       L.DomEvent.disableScrollPropagation(el);
       el.querySelectorAll('input[data-l]').forEach(cb =>
         cb.onchange = () => setLayer(cb.dataset.l, cb.checked));
       el.querySelector('#mapRecentre').onclick = recentreMap;
+      // Collapse/expand: the legend can get tall (speed ramp + corner swatches
+      // + braking/scrubbing summary), so it's worth being able to shrink it
+      // back to a title bar without losing the layer checkboxes underneath it.
+      const toggleBtn = el.querySelector('#mapPanelToggle');
+      toggleBtn.onclick = () => {
+        const collapsed = el.classList.toggle('collapsed');
+        toggleBtn.innerHTML = collapsed ? '&plus;' : '&minus;';
+        toggleBtn.title = collapsed ? 'Expand legend' : 'Collapse legend';
+      };
       return el;
     },
   });
@@ -1277,8 +1545,8 @@ function refreshMap(cur) {
         ` r&asymp;${fmt(z.radius_m, 0)} m<br>grip limit: ${fmt(z.vLimit, 1)} km/h` +
         `<br>predicted apex: ${fmt(z.predictedApex, 1)} km/h` +
         `<br>at ${fmt(cur.cum[z.apex_m], 1)} s` +
-        (z.brakeStart === null ? '<br>no braking — carried on grip alone'
-                               : `<br>braking from ${z.brakeStart} m (${z.brakeDistance} m out)`))
+        (z.brakeStart === null ? '<br>no braking or scrubbing — carried on grip alone'
+                               : `<br>${retardLabel(z)} from ${z.brakeStart} m (${z.brakeDistance} m out)`))
       .addTo(mapLayers.corners);
   });
 
@@ -1292,26 +1560,32 @@ function refreshMap(cur) {
       .addTo(mapLayers.speed);
   }
 
-  // Braking zones: dashed, from where the max-brake envelope starts binding to
-  // the apex, with a marker at the brake point. A corner with none shown is
+  // Braking & scrubbing zones: dashed, from where speed first gets held back
+  // to the apex, with a marker at the start. Coloured per metre by WHICH
+  // mechanism is holding it back there -- red for genuine brake-pedal use
+  // (the backward/max-brake envelope binding), amber for scrubbing (the
+  // corner's own grip absorbing entry speed, no pedal implied) -- since a
+  // single corner's zone can be a mix of both. A corner with neither shown is
   // carried on grip/gravity/drag alone.
   states.forEach(z => {
     if (z.brakeStart === null) return;
-    const pts = [];
-    for (let d = z.brakeStart; d <= z.apex_m; d += 4) pts.push([lat[d], lon[d]]);
-    pts.push([lat[z.apex_m], lon[z.apex_m]]);
-    L.polyline(pts, { color: '#c0392b', weight: 4, opacity: .85, dashArray: '2,7' })
-      .bindTooltip(`Braking for ${esc(z.name)} — ${z.brakeDistance} m out,` +
-                   ` up to ${fmt(z.maxDecel, 2)} m/s&sup2;`, { sticky: true })
-      .addTo(mapLayers.braking);
+    for (let d = z.brakeStart; d < z.apex_m; d += 4) {
+      const d2 = Math.min(d + 4, z.apex_m);
+      const isBrake = cur.braking[d];
+      const color = isBrake ? '#c0392b' : '#d68910';
+      L.polyline([[lat[d], lon[d]], [lat[d2], lon[d2]]], { color, weight: 4, opacity: .85, dashArray: '2,7' })
+        .bindTooltip(`${isBrake ? 'Braking' : 'Scrubbing'} for ${esc(z.name)} at ${d} m`, { sticky: true })
+        .addTo(mapLayers.braking);
+    }
+    const startColor = z.isBraking ? '#c0392b' : '#d68910';
     L.circleMarker([lat[z.brakeStart], lon[z.brakeStart]],
-      { radius: 4, color: '#c0392b', fillColor: '#c0392b', fillOpacity: 1, weight: 1 })
-      .bindTooltip(`Brake point — ${z.brakeStart} m`).addTo(mapLayers.braking);
+      { radius: 4, color: startColor, fillColor: startColor, fillOpacity: 1, weight: 1 })
+      .bindTooltip(`${retardLabel(z)} point — ${z.brakeStart} m, up to ${fmt(z.maxDecel, 2)} m/s&sup2;`)
+      .addTo(mapLayers.braking);
   });
 
   if (layerOn.route) mapLayers.route.eachLayer(l => l.bringToBack());
 
-  const nBrake = states.filter(z => z.brakeStart !== null).length;
   const sc = document.getElementById('mapScale');
   if (!sc) return;
   // Speed ramp legend. The scale is per-concept (5th..100th percentile of THIS
@@ -1324,11 +1598,19 @@ function refreshMap(cur) {
      <div class="ramp-ax"><span>&le;${fmt(lo, 0)}</span><span>${fmt(mid, 0)}</span><span>${fmt(hi, 0)}</span></div>
      <div class="swatches">` +
     states.map((z, i) => `<span><i style="background:${cornerColor(i)}"></i>${esc(z.name)}</span>`).join('') +
-    `</div><div class="rng">` +
-    (nBrake ? `Braking at ${nBrake} of ${states.length} corners, ${brakeMetres(cur)} m total`
-            : `No braking — every corner carried on grip alone`) + `</div>`;
+    `</div><div class="rng">` + retardSummary(states, cur) + `</div>`;
 }
 const brakeMetres = cur => cur.braking.slice(0, COURSE.finish_m + 1).filter(Boolean).length;
+const scrubMetres = cur => cur.scrubbing.slice(0, COURSE.finish_m + 1).filter(Boolean).length;
+function retardSummary(states, cur) {
+  const nBrakeC = states.filter(z => z.isBraking).length;
+  const nScrubC = states.filter(z => z.isScrubbing).length;
+  const parts = [];
+  if (nBrakeC) parts.push(`braking at ${nBrakeC} of ${states.length} corners (${brakeMetres(cur)} m)`);
+  if (nScrubC) parts.push(`scrubbing at ${nScrubC} of ${states.length} corners (${scrubMetres(cur)} m)`);
+  if (!parts.length) return 'No braking or scrubbing — every corner carried on grip alone';
+  return parts.join(', ').replace(/^./, ch => ch.toUpperCase());
+}
 // Single source of truth for the speed ramp, so the map colours and the legend
 // gradient cannot drift apart.
 const SPEED_STOPS = [[0, [40, 60, 140]], [.5, [30, 160, 130]], [1, [235, 200, 40]]];
@@ -1495,11 +1777,16 @@ function courseOkToImport(stamp) {
 document.getElementById('btnExport').onclick = () => {
   // Results are recomputed, never stored -- the same concept is worth a different
   // time on different course geometry. Stamp which course produced these numbers.
+  // Everything a session actually has set: every concept (not just the active
+  // tab), the shared driver/conditions, which tab was open, and any dropped GPX
+  // comparison runs -- so importing this file elsewhere reproduces the working
+  // state, not just the vehicle numbers.
   const blob = new Blob([JSON.stringify(
-    { course: courseStamp(), concepts: state.concepts, driver: state.driver }, null, 2)],
+    { course: courseStamp(), concepts: state.concepts, driver: state.driver,
+      activeIdx: state.activeIdx, runs: serializeRuns() }, null, 2)],
     { type: 'application/json' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'concepts.json'; a.click();
+  a.href = URL.createObjectURL(blob); a.download = 'concept-lab.json'; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 document.getElementById('btnImport').onclick = () => document.getElementById('fileImport').click();
@@ -1511,10 +1798,17 @@ document.getElementById('fileImport').onchange = e => {
       const o = JSON.parse(r.result);
       if (o.concepts && o.concepts.length) {
         if (!courseOkToImport(o.course)) { e.target.value = ''; return; }
-        state.concepts = o.concepts;
+        state.concepts = migrateConcepts(o.concepts);
         state.driver = { ...DEFAULT_DRIVER, ...(o.driver || {}) };
-        state.activeIdx = 0;
+        state.activeIdx = Number.isInteger(o.activeIdx) ? Math.max(0, Math.min(o.activeIdx, state.concepts.length - 1)) : 0;
         if (!state.concepts.some(c => c.isReference)) state.concepts[0].isReference = true;
+        // Older exports predate bundled runs -- absent means "not part of this
+        // file", so leave whatever comparison runs are already loaded alone
+        // rather than wiping them.
+        if (Array.isArray(o.runs)) {
+          runs = o.runs.map(makeRun).filter(x => x.pts.length);
+          saveRuns(); renderRuns();
+        }
         save(); renderAll();
       }
     } catch (err) { alert('Could not read that file: ' + err.message); }
@@ -1534,6 +1828,59 @@ drop.ondrop = e => {
 };
 document.getElementById('gpxInput').onchange = e =>
   [...e.target.files].forEach(f => { const r = new FileReader(); r.onload = () => addGpx(r.result, f.name, takeRunName()); r.readAsText(f); });
+
+/* ===================================================================
+   Lap Speed Calculator -- standalone, no dependency on COURSE/state above.
+   Merged in from GpxBenchmark.html.
+   =================================================================== */
+// 'imperial' = distance in miles, primary speed in MPH.
+// 'metric'   = distance in kilometres, primary speed in KM/H.
+let lapUnit = 'imperial';
+const KM_PER_MILE = 1.609344;
+
+function calculateLapSpeed() {
+  const distance = parseFloat(document.getElementById('distance').value);
+  const seconds = parseFloat(document.getElementById('time').value);
+  const primaryOutput = document.getElementById('lapPrimary');
+  const secondaryOutput = document.getElementById('lapSecondary');
+  if (!isFinite(distance) || !isFinite(seconds) || distance <= 0 || seconds <= 0) {
+    primaryOutput.value = ''; secondaryOutput.value = ''; return;
+  }
+  const hours = seconds / 3600;
+  // Distance is entered in whichever unit is selected, so the raw division
+  // already lands in that unit's speed -- MPH for miles, KM/H for kilometres.
+  const primary = distance / hours;
+  const secondary = lapUnit === 'imperial' ? primary * KM_PER_MILE : primary / KM_PER_MILE;
+  primaryOutput.value = primary.toFixed(2);
+  secondaryOutput.value = secondary.toFixed(2);
+}
+
+function setLapUnit(unit) {
+  if (unit === lapUnit) return;
+  // Convert any distance already entered so the toggle changes the units the
+  // lap is expressed in, not the lap itself -- the resulting speed stays the
+  // same physical speed, just relabelled.
+  const distEl = document.getElementById('distance');
+  const d = parseFloat(distEl.value);
+  if (isFinite(d) && d > 0) distEl.value = (unit === 'metric' ? d * KM_PER_MILE : d / KM_PER_MILE).toFixed(3);
+
+  lapUnit = unit;
+  const imperial = unit === 'imperial';
+  document.getElementById('lapUnitImperial').classList.toggle('active', imperial);
+  document.getElementById('lapUnitMetric').classList.toggle('active', !imperial);
+  document.getElementById('distanceUnit').textContent = imperial ? 'Miles' : 'Kilometres';
+  document.getElementById('lapPrimaryUnit').textContent = imperial ? 'MPH' : 'KM/H';
+  document.getElementById('lapSecondaryUnit').textContent = imperial ? 'KM/H' : 'MPH';
+  calculateLapSpeed();
+}
+
+document.getElementById('distance').oninput = calculateLapSpeed;
+document.getElementById('time').oninput = calculateLapSpeed;
+document.getElementById('lapUnitImperial').onclick = () => setLapUnit('imperial');
+document.getElementById('lapUnitMetric').onclick = () => setLapUnit('metric');
+document.getElementById('lapClear').onclick = () => {
+  ['distance', 'time', 'lapPrimary', 'lapSecondary'].forEach(id => document.getElementById(id).value = '');
+};
 
 if (COURSE) { renderProvenance(); initMap(); renderAll(); renderRuns(); }
 else document.querySelector('.wrap').innerHTML =
