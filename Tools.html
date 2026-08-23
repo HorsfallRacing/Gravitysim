@@ -114,7 +114,9 @@ td.n,th.n{text-align:right;font-family:var(--mono)}
 .wf .lbl{width:118px;font-size:12px;color:var(--text-muted);flex:none}
 .wf .bar{flex:1;height:16px;position:relative;background:var(--surface-2);border-radius:3px}
 .wf .bar i{position:absolute;top:0;bottom:0;border-radius:3px}
-.wf .val{width:62px;text-align:right;font-family:var(--mono);font-size:12px;flex:none}
+.wf .val{width:104px;text-align:right;font-family:var(--mono);font-size:11.5px;flex:none}
+.sens-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--text-faint);
+  margin:4px 0 0;padding-left:126px}
 .note{font-size:12px;color:var(--text-muted);margin:9px 0 0}
 .note strong{color:var(--text)}
 .map-panel{background:rgba(255,255,255,.94);border-radius:8px;padding:8px 10px;
@@ -129,6 +131,8 @@ td.n,th.n{text-align:right;font-family:var(--mono)}
   border:1px solid #c3c9d2;border-radius:5px;background:#f3f5f8;color:#1a1d24}
 .map-panel button:hover{border-color:#2f7dd1;color:#2f7dd1}
 .map-panel .scale{margin-top:7px;border-top:1px solid #dfe3e9;padding-top:5px;color:#5b6472;font-size:10.5px}
+.run-name{cursor:pointer;border-bottom:1px dotted var(--text-faint)}
+.run-name:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .map-panel .lg-title{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .map-panel .ramp{height:9px;border-radius:2px;border:1px solid rgba(0,0,0,.25)}
 .map-panel .ramp-ax{display:flex;justify-content:space-between;font-size:9.5px;
@@ -149,6 +153,13 @@ td.n,th.n{text-align:right;font-family:var(--mono)}
 .drop{border:1.5px dashed var(--border);border-radius:var(--radius-md);padding:13px;text-align:center;
   font-size:12px;color:var(--text-muted);cursor:pointer;background:var(--surface-2)}
 .drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-dark)}
+.run-row{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:5px 0;border-top:1px solid var(--border)}
+.run-row label{display:flex;align-items:center;gap:5px;flex:1;min-width:0;cursor:pointer;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.run-row .rmeta{color:var(--text-muted);font-size:10.5px;white-space:nowrap}
+.run-row button{border:1px solid var(--border);background:transparent;border-radius:4px;cursor:pointer;
+  color:var(--text-muted);font-size:12px;line-height:1;padding:2px 7px}
+.run-row button:hover{color:var(--danger);border-color:var(--danger)}
 .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:9px;background:var(--surface-2);
   border:1px solid var(--border);color:var(--text-muted);margin-left:5px}
 .warnbox{font-size:12px;padding:9px 11px;border-radius:var(--radius-md);background:#fdf6e6;
@@ -223,9 +234,10 @@ details.prov-detail li{margin:3px 0}
 
     <div class="card">
       <h2>Compare against a run</h2>
-      <div class="drop" id="drop">Drop a GPX here<br><span style="font-size:11px">or click to choose</span></div>
+      <div class="fld" style="grid-template-columns:1fr;margin-bottom:8px"><input type="text" id="runName" placeholder="Name this run (optional)"></div><div class="drop" id="drop">Drop a GPX here<br><span style="font-size:11px">or click to choose</span></div>
       <input type="file" id="gpxInput" accept=".gpx" multiple hidden>
       <div id="gpxStatus" class="note"></div>
+      <div id="runList"></div>
     </div>
 
    </div>
@@ -261,7 +273,7 @@ details.prov-detail li{margin:3px 0}
     <div class="card">
       <h2>Speed along the course</h2>
       <div class="chartbox"><canvas id="chart"></canvas></div>
-      <p class="note">Shaded bands are the named corners.</p>
+      <p class="note">Shaded bands are the named corners; the dashed line across each is that corner&rsquo;s grip limit. Where the trace touches the dash the corner is grip-limited; a gap means the car arrives below the limit.</p>
     </div>
 
     <div class="card">
@@ -492,9 +504,18 @@ const DRIVER_FIELDS = [
 const V_START = 0;
 
 function referenceConcept() {
+  // mu = 0.795, from recorded apex speeds re-extracted at the CURRENT apex
+  // positions and divided by the current radii. The earlier 0.4989 and 0.637
+  // both used speeds tied to the OLD apex locations, which had moved as much
+  // as 50 m -- Chippy's recorded apex speed is 42.4 km/h at its true apex,
+  // not the 29.9 measured further down the road. Fixing that collapsed the
+  // per-corner scatter from sd 0.161 to sd 0.047.
+  //
+  // At this value, simulated corner speeds match the recorded ones to
+  // 1.37 km/h RMS across all six corners with nothing else fitted.
   return {
-    id: 'ref-4wheel', name: '4-wheeler (baseline)', isReference: true,
-    params: { mass: 125.3, cda: 0.1125, crr: 0.0048, mu: 0.4989,
+    id: 'ref-4wheel', name: 'Bertrandt', isReference: true,
+    params: { mass: 125.3, cda: 0.1125, crr: 0.0048, mu: 0.795,
               wheelbase: 1345, trackF: 1060, cgHeight: 300 },
     prov: { mass: 'measured', cda: 'independent', crr: 'independent',
             mu: 'fitted', wheelbase: 'measured', trackF: 'measured', cgHeight: 'estimated' },
@@ -503,18 +524,113 @@ function referenceConcept() {
 const DEFAULT_DRIVER = { gripUsage: 100, brakeConfidence: 90, windSpeed: 0, windDir: 225 };
 
 let state = load() || { concepts: [referenceConcept()], driver: { ...DEFAULT_DRIVER }, activeIdx: 0 };
-let runs = [];   // dropped GPX, session only
+const RUNS_KEY = 'conceptlab.runs.v1';
 
 function save() {
   try { localStorage.setItem('conceptlab.v1', JSON.stringify({ concepts: state.concepts, driver: state.driver })); }
   catch (e) { /* storage may be unavailable; the app still works for the session */ }
 }
+
+/* ---------- dropped GPX runs (persisted) ----------
+   A run is stored as plain data. speedAt() is a closure and cannot survive
+   JSON, so it is rebuilt by makeRun() on every restore -- the stored shape is
+   {label, visible, courseId, pts:[{d,v}]} and nothing else.
+   courseId records which course the run was rescaled onto, so a run carried
+   over from different course geometry is flagged rather than silently
+   compared. */
+const courseStamp = () => ({
+  id: COURSE.id, schema: COURSE.schema, length_m: COURSE.length_m, finish_m: COURSE.finish_m,
+});
+function makeSpeedAt(pts) {
+  return function (d) {
+    if (!pts.length) return null;
+    if (d <= pts[0].d) return pts[0].v;
+    for (let i = 1; i < pts.length; i++) if (pts[i].d >= d) {
+      const u = (d - pts[i - 1].d) / (pts[i].d - pts[i - 1].d || 1);
+      return pts[i - 1].v + u * (pts[i].v - pts[i - 1].v);
+    }
+    return pts[pts.length - 1].v;
+  };
+}
+function makeRun(o) {
+  const pts = (o && Array.isArray(o.pts) ? o.pts : [])
+    .filter(p => p && isFinite(p.d) && isFinite(p.v));
+  return {
+    label: String((o && o.label) || 'run').slice(0, 18),
+    visible: !(o && o.visible === false),
+    courseId: (o && o.courseId) || COURSE.id,
+    pts, speedAt: makeSpeedAt(pts),
+  };
+}
+// Keep localStorage small: at most MAX_PTS samples per run, coordinates rounded.
+const MAX_PTS = 400;
+function saveRuns() {
+  try {
+    localStorage.setItem(RUNS_KEY, JSON.stringify(runs.map(r => {
+      const step = Math.max(1, Math.ceil(r.pts.length / MAX_PTS));
+      const pts = r.pts.filter((_, i) => i % step === 0 || i === r.pts.length - 1)
+        .map(p => ({ d: +p.d.toFixed(1), v: +p.v.toFixed(2) }));
+      return { label: r.label, visible: r.visible, courseId: r.courseId, pts };
+    })));
+  } catch (e) { /* quota or storage unavailable -- runs stay session-only */ }
+}
+function loadRuns() {
+  try {
+    const raw = localStorage.getItem(RUNS_KEY);
+    if (!raw) return [];
+    const a = JSON.parse(raw);
+    return Array.isArray(a) ? a.map(makeRun).filter(r => r.pts.length) : [];
+  } catch (e) { return []; }
+}
+function renderRuns() {
+  const el = document.getElementById('runList');
+  if (!el) return;
+  el.innerHTML = runs.map((r, i) =>
+    `<div class="run-row">
+       <label><input type="checkbox" class="run-vis" data-i="${i}" ${r.visible ? 'checked' : ''}
+              ><span class="run-name" data-i="${i}" title="Click to rename">${esc(r.label)}</span></label>
+       <span class="rmeta">${r.pts.length} pts${
+         r.courseId !== COURSE.id
+           ? ` &middot; <span style="color:var(--danger)">other course: ${esc(r.courseId)}</span>` : ''}</span>
+       <button class="run-del" data-i="${i}" title="Remove this run">&times;</button>
+     </div>`).join('');
+  el.querySelectorAll('.run-vis').forEach(cb => cb.onchange = () => {
+    runs[+cb.dataset.i].visible = cb.checked; saveRuns(); renderOutputs();
+  });
+  // click the name to rename in place, so a run imported under a filename can
+  // be relabelled later without re-importing it
+  el.querySelectorAll('.run-name').forEach(sp => sp.onclick = ev => {
+    ev.preventDefault();
+    const i = +sp.dataset.i;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.value = runs[i].label;
+    inp.style.cssText = 'width:100%;font-size:11.5px;padding:1px 3px';
+    const commit = () => {
+      const v = inp.value.trim();
+      if (v) runs[i].label = v.slice(0, 28);
+      saveRuns(); renderRuns(); renderOutputs();
+    };
+    inp.onblur = commit;
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur();
+                           if (e.key === 'Escape') { inp.onblur = null; renderRuns(); } };
+    sp.replaceWith(inp); inp.focus(); inp.select();
+  });
+  el.querySelectorAll('.run-del').forEach(b => b.onclick = () => {
+    runs.splice(+b.dataset.i, 1); saveRuns(); renderRuns(); renderOutputs();
+  });
+}
+let runs = loadRuns();
 function load() {
   try {
     const raw = localStorage.getItem('conceptlab.v1');
     if (!raw) return null;
     const o = JSON.parse(raw);
     if (!o.concepts || !o.concepts.length) return null;
+    // the reference car was renamed; carry saved state over rather than
+    // stranding it under the old label
+    o.concepts.forEach(c => {
+      if (c.id === 'ref-4wheel' && c.name === '4-wheeler (baseline)') c.name = 'Bertrandt';
+    });
     return { concepts: o.concepts, driver: { ...DEFAULT_DRIVER, ...o.driver }, activeIdx: 0 };
   } catch (e) { return null; }
 }
@@ -608,7 +724,10 @@ function renderOutputs() {
   refreshMap(cur);
 }
 
-const NOISE_FLOOR = 2.5;   // s — run-to-run spread of the baseline vehicle
+// Run-to-run spread of the baseline vehicle over the CURRENT course:
+// four usable GPX runs span 83.20-88.22 s. Half that spread is the smallest
+// difference worth claiming between two concepts.
+const NOISE_FLOOR = 2.5;
 
 function renderHero(c, ref, cur, refRes) {
   const t = cur.time, rt = refRes.time;
@@ -629,9 +748,7 @@ function renderHero(c, ref, cur, refRes) {
     hv.innerHTML = fmt(t, 2) + '<small>s</small>';
     vd.innerHTML = `<div class="verdict tie">This is the reference. Add a concept and the
       headline becomes a Δ against this time.</div>`;
-    de.innerHTML = speedLine(cur) + `<br>Absolute times carry the model's systematic error;
-      differences largely cancel it. Treat this as a baseline to measure against,
-      not a prediction of a real run.`;
+    de.innerHTML = speedLine(cur) + `<br><b>This is an optimal run, not a typical one.</b> Grip usage is 100% and the model brakes as late as physics allows at every corner, so compare it against a best-ever time, not an average. For reference the four usable GPX runs span 83.20-88.22 s over this course, and the rider&rsquo;s best officially timed run is about 80 s.`;
     return;
   }
   const d = t - rt;
@@ -859,6 +976,22 @@ function renderChart(cur) {
     label: 'run ' + r.label, data: xs.map(d => ({ x: d, y: r.speedAt(d) })),
     borderColor: '#9aa1ab', borderWidth: 1, borderDash: [2, 3], pointRadius: 0, tension: .2,
   }));
+
+  // Grip limit per corner: a dashed segment at the limiting speed, spanning the
+  // corner's own extent so it sits across its own shaded band. Where the trace
+  // touches the dash, the corner is grip-limited; a gap means the car arrives
+  // below the limit and the corner is free.
+  const pa = fullParams(active());
+  COURSE.corners.forEach((cor, i) => ds.push({
+    label: cor.name + ' limit',
+    data: [{ x: cor.d0_m, y: cornerLimit(cor.apex_m, pa) },
+           { x: cor.d1_m, y: cornerLimit(cor.apex_m, pa) }],
+    borderColor: cornerColor(i), borderWidth: 2, borderDash: [5, 5],
+    pointRadius: 0, tension: 0,
+    // kept out of the legend: six more entries would swamp the concepts, and
+    // the bands already carry the colour-to-corner mapping
+    _hideLegend: true,
+  }));
   const cfg = {
     type: 'line',
     data: { datasets: ds },
@@ -871,7 +1004,8 @@ function renderChart(cur) {
              title: { display: true, text: 'Distance (m)' }, ticks: { maxTicksLimit: 12 } },
         y: { title: { display: true, text: 'Speed (km/h)' }, beginAtZero: true },
       },
-      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } },
+      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 },
+            filter: (item, data) => !data.datasets[item.datasetIndex]._hideLegend } } },
     },
     plugins: [cornerBands],
   };
@@ -923,28 +1057,61 @@ function renderSensitivity(cur) {
   const c = active(), p = fullParams(c), base = cur.time;
   const el = document.getElementById('sensitivity');
   if (base === null) { el.innerHTML = '<p class="note">No result to test — this concept stalls.</p>'; return; }
+  // Two-sided: keep the -10% and +10% responses SEPARATE rather than averaging
+  // them into one swing. They are not symmetric — a parameter can cost far more
+  // when it moves the wrong way than it gains moving the right way, and that
+  // asymmetry is the whole point of the panel.
   const rows = VEHICLE_FIELDS.map(f => {
-    const up = simulate({ ...p, [f.k]: c.params[f.k] * (1 + SENS_PCT / 100) }).time;
-    const dn = simulate({ ...p, [f.k]: c.params[f.k] * (1 - SENS_PCT / 100) }).time;
-    const swing = (up === null || dn === null) ? null : (up - dn) / 2;
-    return { ...f, swing, prov: c.prov[f.k] || 'none' };
-  }).filter(r => r.swing !== null).sort((a, b) => Math.abs(b.swing) - Math.abs(a.swing));
-  const max = Math.max(...rows.map(r => Math.abs(r.swing)), 0.001);
+    const dnRaw = simulate({ ...p, [f.k]: c.params[f.k] * (1 - SENS_PCT / 100) }).time;
+    const upRaw = simulate({ ...p, [f.k]: c.params[f.k] * (1 + SENS_PCT / 100) }).time;
+    // A +/-10% nudge can tip a concept into a no-finish state even when the
+    // current setting is fine. That is a result, not a number: flag the row
+    // rather than folding a null into the bar arithmetic.
+    const stalls = dnRaw === null || upRaw === null;
+    const a = (dnRaw === null ? base : dnRaw) - base;
+    const b = (upRaw === null ? base : upRaw) - base;
+    return { ...f, lo: Math.min(a, b), hi: Math.max(a, b), span: Math.abs(b - a),
+             stalls, prov: c.prov[f.k] || 'none' };
+  }).sort((x, y) => y.span - x.span);
+
+  // Symmetric axis with a floor, so a near-flat set of bars is not magnified
+  // into false drama.
+  const extent = Math.max(0.5, ...rows.map(r => Math.max(Math.abs(r.lo), Math.abs(r.hi))));
+  const pos = x => (x + extent * 1.05) / (extent * 2.1) * 100;
+  const zero = pos(0);
+
   const RANK = { assumed: 3, fitted: 2.5, estimated: 1.5, none: 1.5, independent: 0.6, measured: 0.2 };
-  const worth = rows.map(r => ({ ...r, value: Math.abs(r.swing) * (RANK[r.prov] ?? 1.5) }))
-                    .sort((a, b) => b.value - a.value);
+  const worth = rows.filter(r => !r.stalls)
+                    .map(r => ({ ...r, value: r.span * (RANK[r.prov] ?? 1.5) }))
+                    .sort((x, y) => y.value - x.value);
+
   el.innerHTML = rows.map(r => {
-    const w = Math.abs(r.swing) / max * 100;
+    // Split the bar at zero and colour each half by what it means: green to the
+    // left (this change makes the car FASTER), red to the right (slower). A
+    // single colour spanning zero makes the reader work out the sign from the
+    // axis; this way the direction reads at a glance, same as the waterfall.
+    const negL = pos(Math.min(r.lo, 0)), negR = pos(Math.min(r.hi, 0));
+    const posL = pos(Math.max(r.lo, 0)), posR = pos(Math.max(r.hi, 0));
+    // Sub-pixel bars vanish; give a near-zero response a visible stub so
+    // "this input does almost nothing" reads as a result, not a render bug.
+    const stub = r.span < 0.02 ? 0.8 : 0;
     return `<div class="wf"><span class="lbl">${r.label}
       <span class="prov ${r.prov}" style="font-size:7.5px">${r.prov.slice(0, 3)}</span></span>
-      <span class="bar"><i style="left:0;width:${w}%;background:var(--accent)"></i></span>
-      <span class="val">${signed(r.swing, 2)}</span></div>`;
+      <span class="bar">
+        ${negR > negL ? `<i style="left:${negL}%;width:${negR - negL}%;background:var(--success)"></i>` : ''}
+        ${posR > posL ? `<i style="left:${posL}%;width:${posR - posL}%;background:var(--danger)"></i>` : ''}
+        ${stub ? `<i style="left:${zero - stub / 2}%;width:${stub}%;background:var(--text-faint)"></i>` : ''}
+        <i style="left:${zero}%;width:1px;background:var(--text-faint);opacity:.55"></i></span>
+      <span class="val">${r.stalls ? '<span style="font-size:10px;color:var(--danger)">no finish</span>'
+        : `<span class="neg">${signed(r.lo, 2)}</span> / <b class="pos">${signed(r.hi, 2)}</b>`}</span></div>`;
   }).join('') +
-    `<p class="note">Seconds gained or lost per <strong>±${SENS_PCT}%</strong> change, largest first.
-     Weighting each by how poorly it is known, the measurement worth making next is
-     <strong>${worth[0].label}</strong> — it moves the result ${fmt(Math.abs(worth[0].swing), 2)} s
-     per ${SENS_PCT}% and is currently
-     <span class="prov ${worth[0].prov}">${worth[0].prov}</span>.</p>`;
+    `<div class="sens-axis"><span>${fmt(-extent * 1.05, 1)}s faster</span><span>0</span>` +
+    `<span>+${fmt(extent * 1.05, 1)}s slower</span></div>` +
+    (worth.length ? `<p class="note">Bars span the response to <strong>&minus;${SENS_PCT}%</strong>
+     and <strong>+${SENS_PCT}%</strong>, widest first. Weighting each by how poorly it is known,
+     the measurement worth making next is <strong>${worth[0].label}</strong> — it moves the result
+     ${fmt(worth[0].span, 2)} s across that range and is currently
+     <span class="prov ${worth[0].prov}">${worth[0].prov}</span>.</p>` : '');
 }
 
 // Rollover vs grip. Kept because it is cheap and occasionally binds — a low,
@@ -1084,7 +1251,12 @@ function refreshMap(cur) {
   const { lat, lon } = COURSE.stations;
   const fin = COURSE.finish_m;
   const vs = cur.v.slice(0, fin + 1);
-  const lo = Math.min(...vs), hi = Math.max(...vs);
+  // The car starts from rest, so a raw min..max ramp always begins at 0 km/h and
+  // burns the bottom of the scale on the first few metres. Span the 5th..100th
+  // percentile instead; speedColor() clamps, so the launch simply pins to the
+  // bottom colour. lo/hi below are the single source for BOTH the drawn line
+  // and the legend labels.
+  const { lo, hi } = speedRange(vs);
   mapLayers.speed.clearLayers();
   mapLayers.braking.clearLayers();
   mapLayers.corners.clearLayers();
@@ -1142,13 +1314,14 @@ function refreshMap(cur) {
   const nBrake = states.filter(z => z.brakeStart !== null).length;
   const sc = document.getElementById('mapScale');
   if (!sc) return;
-  // Speed ramp legend. The scale is per-concept (min to max of THIS trace), so
-  // the labels have to be redrawn on every update, not baked into the panel.
+  // Speed ramp legend. The scale is per-concept (5th..100th percentile of THIS
+  // trace), so the labels have to be redrawn on every update, not baked into the
+  // panel. lo/hi come from the same speedRange() call that coloured the line.
   const mid = lo + (hi - lo) / 2;
   sc.innerHTML =
-    `<div class="lg-title">Speed (km/h)</div>
+    `<div class="lg-title">Speed (km/h) <span style="font-weight:400;opacity:.65">5th&ndash;100th pct</span></div>
      <div class="ramp" style="background:${speedGradientCss()}"></div>
-     <div class="ramp-ax"><span>${fmt(lo, 0)}</span><span>${fmt(mid, 0)}</span><span>${fmt(hi, 0)}</span></div>
+     <div class="ramp-ax"><span>&le;${fmt(lo, 0)}</span><span>${fmt(mid, 0)}</span><span>${fmt(hi, 0)}</span></div>
      <div class="swatches">` +
     states.map((z, i) => `<span><i style="background:${cornerColor(i)}"></i>${esc(z.name)}</span>`).join('') +
     `</div><div class="rng">` +
@@ -1159,6 +1332,17 @@ const brakeMetres = cur => cur.braking.slice(0, COURSE.finish_m + 1).filter(Bool
 // Single source of truth for the speed ramp, so the map colours and the legend
 // gradient cannot drift apart.
 const SPEED_STOPS = [[0, [40, 60, 140]], [.5, [30, 160, 130]], [1, [235, 200, 40]]];
+// Percentile span for the speed ramp. Returns the range used by BOTH the map
+// polylines and the legend axis, so the two cannot drift apart.
+const RAMP_LO_PCT = 0.05, RAMP_HI_PCT = 1;
+function speedRange(vs) {
+  const s = vs.filter(v => isFinite(v)).slice().sort((a, b) => a - b);
+  if (!s.length) return { lo: 0, hi: 1 };
+  const q = p => s[Math.min(s.length - 1, Math.max(0, Math.round(p * (s.length - 1))))];
+  let lo = q(RAMP_LO_PCT), hi = q(RAMP_HI_PCT);
+  if (!(hi > lo)) hi = lo + 1;
+  return { lo, hi };
+}
 function speedColor(t) {
   t = Math.max(0, Math.min(1, t));
   for (let i = 1; i < SPEED_STOPS.length; i++) {
@@ -1181,7 +1365,16 @@ function haversine(a, b, c, d) {
   const x = Math.sin(dφ / 2) ** 2 + Math.cos(a * p) * Math.cos(c * p) * Math.sin(dλ / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }
-function addGpx(text, filename) {
+// Reads the optional name field and clears it, so dropping two files does not
+// silently give both the same label.
+function takeRunName() {
+  const el = document.getElementById('runName');
+  if (!el) return null;
+  const v = el.value.trim(); el.value = '';
+  return v || null;
+}
+
+function addGpx(text, filename, customName) {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
   const trkpts = [...doc.getElementsByTagName('trkpt')];
   if (trkpts.length < 10) { gpxStatus('Not enough trackpoints in ' + filename, true); return; }
@@ -1207,20 +1400,13 @@ function addGpx(text, filename) {
   // scale the run's own distance onto the course length so the comparison lines up
   const scale = COURSE.length_m / cum;
   const pts = raw.map((p, i) => ({ d: p.d * scale, v: speeds[i] })).filter(p => p.v !== null);
-  runs.push({
-    label: filename.replace(/\.gpx$/i, '').slice(0, 18), visible: true, pts,
-    speedAt(d) {
-      if (!pts.length) return null;
-      if (d <= pts[0].d) return pts[0].v;
-      for (let i = 1; i < pts.length; i++) if (pts[i].d >= d) {
-        const u = (d - pts[i - 1].d) / (pts[i].d - pts[i - 1].d || 1);
-        return pts[i - 1].v + u * (pts[i].v - pts[i - 1].v);
-      }
-      return pts[pts.length - 1].v;
-    },
-  });
+  runs.push(makeRun({
+    label: (customName || filename.replace(/\.gpx$/i, '')).slice(0, 28),
+    visible: true, pts, courseId: COURSE.id,
+  }));
+  saveRuns(); renderRuns();
   gpxStatus(`Loaded ${filename} — ${pts.length} points, ${cum.toFixed(0)} m recorded ` +
-            `(rescaled ${(scale * 100 - 100).toFixed(1)}% onto the surveyed course length). Session only.`);
+            `(rescaled ${(scale * 100 - 100).toFixed(1)}% onto the surveyed course length). Saved in this browser.`);
   renderOutputs();
 }
 function gpxStatus(msg, err) {
@@ -1278,8 +1464,39 @@ document.getElementById('btnReset').onclick = () => {
   state.activeIdx = 0;
   save(); renderAll();
 };
+/* Predicted times are recomputed from the course asset every time, never stored.
+   The same concept has been worth 74.03 s and 77.59 s purely from a course
+   change, so an export made against different geometry is not comparable with
+   what this page will now compute. Warn clearly, but let the user proceed. */
+function courseOkToImport(stamp) {
+  const cur = courseStamp();
+  if (!stamp) {
+    return confirm(
+      'This file has no course stamp \u2014 it came from an older export, so there is ' +
+      'no way to tell which course geometry produced its numbers.\n\n' +
+      'Current course: ' + cur.id + ' (schema ' + cur.schema + ', ' +
+      cur.length_m + ' m, finish ' + cur.finish_m + ' m).\n\n' +
+      'The concepts will be re-simulated on the current course, so any times noted ' +
+      'alongside this file may not match what you see here.\n\nImport anyway?');
+  }
+  const keys = ['id', 'schema', 'length_m', 'finish_m'];
+  const diff = keys.filter(k => String(stamp[k]) !== String(cur[k]));
+  if (!diff.length) return true;
+  return confirm(
+    'COURSE MISMATCH \u2014 this file was exported against a different course.\n\n' +
+    diff.map(k => '  ' + k + ':  file "' + stamp[k] + '"  vs  current "' + cur[k] + '"').join('\n') +
+    '\n\nResults are never stored, only recomputed. Importing these concepts will ' +
+    're-simulate them on the CURRENT course, so their predicted times will differ ' +
+    'from whatever was recorded when this file was made \u2014 the same concept has ' +
+    'been worth 74.03 s and 77.59 s from a course change alone. Comparing against ' +
+    'the old numbers would be comparing across different geometry.\n\nImport anyway?');
+}
+
 document.getElementById('btnExport').onclick = () => {
-  const blob = new Blob([JSON.stringify({ concepts: state.concepts, driver: state.driver }, null, 2)],
+  // Results are recomputed, never stored -- the same concept is worth a different
+  // time on different course geometry. Stamp which course produced these numbers.
+  const blob = new Blob([JSON.stringify(
+    { course: courseStamp(), concepts: state.concepts, driver: state.driver }, null, 2)],
     { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'concepts.json'; a.click();
@@ -1293,6 +1510,7 @@ document.getElementById('fileImport').onchange = e => {
     try {
       const o = JSON.parse(r.result);
       if (o.concepts && o.concepts.length) {
+        if (!courseOkToImport(o.course)) { e.target.value = ''; return; }
         state.concepts = o.concepts;
         state.driver = { ...DEFAULT_DRIVER, ...(o.driver || {}) };
         state.activeIdx = 0;
@@ -1300,6 +1518,7 @@ document.getElementById('fileImport').onchange = e => {
         save(); renderAll();
       }
     } catch (err) { alert('Could not read that file: ' + err.message); }
+    e.target.value = '';   // let the same file be re-picked
   };
   r.readAsText(f);
 };
@@ -1310,13 +1529,13 @@ drop.ondragleave = () => drop.classList.remove('over');
 drop.ondrop = e => {
   e.preventDefault(); drop.classList.remove('over');
   [...e.dataTransfer.files].forEach(f => {
-    const r = new FileReader(); r.onload = () => addGpx(r.result, f.name); r.readAsText(f);
+    const r = new FileReader(); r.onload = () => addGpx(r.result, f.name, takeRunName()); r.readAsText(f);
   });
 };
 document.getElementById('gpxInput').onchange = e =>
-  [...e.target.files].forEach(f => { const r = new FileReader(); r.onload = () => addGpx(r.result, f.name); r.readAsText(f); });
+  [...e.target.files].forEach(f => { const r = new FileReader(); r.onload = () => addGpx(r.result, f.name, takeRunName()); r.readAsText(f); });
 
-if (COURSE) { renderProvenance(); initMap(); renderAll(); }
+if (COURSE) { renderProvenance(); initMap(); renderAll(); renderRuns(); }
 else document.querySelector('.wrap').innerHTML =
   '<div class="card"><h2>No course loaded</h2><p class="note">The course asset was not injected. ' +
   'Run <code>node pipeline/injectcourse.js</code>.</p></div>';

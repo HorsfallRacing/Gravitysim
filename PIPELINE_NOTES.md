@@ -16,6 +16,20 @@ node buildasset.js           # curvature, corners, provenance -> course.harewood
 node injectcourse.js         # embed the asset into Tools.html
 ```
 
+`rebuild.js` wraps the Node stages and stops with explicit instructions where
+the browser stage is required:
+
+```
+node rebuild.js              # stages 1-2, then STOPS: do the browser snap
+node rebuild.js --resume     # stages 4-6, once snapped_line.json is written
+node rebuild.js --all        # both halves, reusing the snapped_line.json on disk
+```
+
+**There is no one-command rebuild, and `--all` is not one.** Two things stand in
+the way, both documented below: the snap needs a browser (stage 3b), and the
+snap is a fixed-point iteration whose output goes stale as soon as the
+centreline underneath it is rebuilt.
+
 To serve the app (and to give roadsnap.js somewhere to POST):
 `node pipeline/server.js` → http://localhost:8137/Tools.html
 
@@ -145,6 +159,10 @@ ill-conditioned at National Grid coordinate magnitudes and return NaN.
 
 ### 3b. Road snap (browser stage)
 
+> **Two structural limitations live in this stage.** (a) It needs a browser.
+> (b) It is not idempotent. Both are spelled out at the end of this section,
+> along with what it would take to fix (a).
+
 `roadsnap.js` — constrains the centreline to the tarmac, classified from
 aerial imagery. **Must run in a browser** (Node cannot decode JPEG tiles):
 serve the repo, open Tools.html, paste the file into the console, then run
@@ -173,9 +191,91 @@ edge is real information.
   width. An earlier 0.9 m margin technically put the line on tarmac but left it
   hugging the inner kerb at hairpins, which reads as "on the grass" at map zoom
   and is not a line anyone drives.
-- The snap is a **fixed-point iteration**: it operates on the current course and
-  writes a new one, so re-running `buildcourse.js` from scratch requires
-  re-running the snap too.
+- **Canopy gaps are left alone, not interpolated.** The ~290 unconstrained
+  stations are not scattered; they fall in a handful of contiguous bands where
+  the tree cover is continuous. That means a purely geometric fix is available
+  and does *not* need better imagery: the road corridor edges (`LO`/`HI`, in
+  metres of lateral offset) are already confident on both sides of each gap, and
+  a real road does not change width or lateral position discontinuously under
+  trees. Linearly interpolating `LO` and `HI` across a gap — gated on the gap
+  being short enough (say < 40 m) and on the two flanking bands agreeing on
+  width to within ~1.5 m — would extend the constraint through the canopy with a
+  stated, checkable assumption. **Not implemented.** It is a genuine change to
+  the geometry of a frozen asset and needs to be validated against imagery by
+  eye before it is trusted, exactly as the original snap was. Longer gaps, and
+  gaps that straddle a corner (where the road curves *through* the shade, so
+  linear interpolation of a lateral offset is the wrong model), must stay
+  unconstrained.
+
+#### Limitation (a): the browser requirement — and how to remove it
+
+The blocker was always that `.../World_Imagery/MapServer/tile/{z}/{y}/{x}`
+returns **`image/jpeg`**, and decoding JPEG in Node means a dependency.
+
+**The same MapServer will serve PNG.** Its `export` operation honours a
+`format` parameter:
+
+```
+https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export
+  ?bbox={x0},{y0},{x1},{y1}&bboxSR=3857&imageSR=3857&size={W},{H}&format=png32&f=image
+```
+
+PNG is deflate plus per-scanline filters — `zlib.inflateSync` from Node's
+standard library, then ~40 lines of un-filtering. **No npm dependency.**
+
+Verified end to end (2026-08-23) by `pipeline/imagerypng.js`, which contains a
+working decoder and prints its own evidence:
+
+| | |
+|---|---|
+| tile endpoint content-type | `image/jpeg` (the control) |
+| export endpoint content-type | **`image/png`**, colour type 6, 8-bit RGBA |
+| whole course, one request | 2042 × 2441 px at **0.250 m/px**, 6.7 MB |
+| decode time in Node | **421 ms** |
+| pixel mean / stdev | 66.4 / 25.3 — real imagery, not a blank placeholder |
+| RGB at the start line | `[97, 102, 98]` — passes the existing `tarmac()` test |
+| RGB at d = 500 | `[22, 33, 27]` — brightness 27, i.e. the canopy case, as expected |
+
+`export` is also *better suited* to this job than the tile endpoint: it takes an
+arbitrary bbox and output size, so the whole course arrives as **one image on a
+pixel grid we choose**. Ground sample distance becomes an explicit input instead
+of a consequence of the zoom level, and all tile-stitching and tile-boundary
+bookkeeping disappears.
+
+**Estimated work to port `roadsnap.js` headless: 1–2 hours.** The classification
+maths is already pure arithmetic over an RGB buffer and ports unchanged; what
+changes is only how pixels are obtained and addressed. Specifically: replace the
+canvas/tile mosaic with one `fetchImagery()` call; swap the `lat2py`/`lon2px`
+tile-pixel mapping for a bbox-relative one (`imagerypng.js` has it); read RGB
+from the RGBA buffer rather than `getImageData`; write the file directly instead
+of POSTing to `server.js`. **The one thing that must be checked, not assumed:**
+export renders at a resolution we ask for rather than serving a fixed pyramid
+level, so the imagery is resampled differently from the z19 tiles the current
+thresholds were tuned against. Re-verify the `tarmac()` cutoffs and the
+brightness < 75 canopy test against the new buffer before trusting the output —
+the two spot checks above are consistent with the existing thresholds, but two
+pixels are not a validation.
+
+Doing so would collapse the rebuild to a genuine single command and delete the
+`--resume` split from `rebuild.js` entirely.
+
+#### Limitation (b): the snap is not idempotent
+
+The snap is a **fixed-point iteration, not a pure function**. It reads the
+CURRENT course and emits a corrected line, so:
+
+- re-running `buildcourse.js` from scratch **invalidates `snapped_line.json`**
+  and requires re-running the snap;
+- running the snap twice does not give the same answer as running it once
+  (the second pass starts from an already-corrected line);
+- `snapped_line.json` is therefore **only meaningful paired with the centreline
+  it was computed from**. Nothing in the file records that pairing — it is a
+  bare array of lat/lon. `rebuild.js` warns when it is about to be invalidated,
+  which is a mitigation, not a fix.
+
+The real fix is to stamp `snapped_line.json` with a hash of the centreline it
+was derived from, and have `buildfromline.js` refuse to proceed on a mismatch.
+Cheap, and worth doing before anyone rebuilds this course a fourth time.
 
 ### 4. Corner detection
 
@@ -209,6 +309,35 @@ The old sim's `STRAIGHT_RADIUS = 3000` sentinel is a workaround for this.
 
 Known open issue: the circle-fit window is a fixed ±30 m, which biases tight
 corners low by including entry and exit straights. Should be scaled per corner.
+
+#### The radii are of the driven line, not of the road
+
+**This is inherent to the method, not a bug, and it will not be fixed by better
+smoothing or a better window.** Every radius in the table above is measured on a
+centreline built by averaging four *driven* GPS traces and then constrained to
+lie on the tarmac. Drivers do not drive the road's centreline: they straighten
+corners. So the geometry describes **the path four runs actually took**, which
+at any corner is *wider in radius* than the road it was driven on.
+
+Consequences to keep in view when the numbers are used:
+
+- The radii are **not a property of Harewood**. Re-running the pipeline over a
+  different set of runs, or the same runs by a different driver, would legitimately
+  return different radii for the same corners. They are only reproducible to the
+  extent the source runs are.
+- Cornering speed limits derived from them (`v = sqrt(mu*g*R)`) inherit this. They
+  answer "how fast through the line these runs took", not "how fast through this
+  corner".
+- Fitting μ against these radii bakes the driven line into μ. Any later change to
+  the line — a re-snap, a different smoothing window, more source runs — silently
+  changes what μ means. (This is already flagged under Open: μ is `fitted`
+  against radii that no longer exist.)
+- Where it is benign: a concept-vs-concept Δt, where both vehicles run the same
+  stored line with the same driver, so line choice largely cancels.
+
+Getting road radii instead would mean digitising the tarmac edges and fitting the
+road's own centreline — deliberately deferred, and listed under the ruled-out
+tarmac-edge work above.
 
 ---
 
